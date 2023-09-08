@@ -2,10 +2,13 @@ import logging
 import os
 from base64 import b64decode
 from sys import argv
+from time import sleep
 
 from instagrapi import Client
 from instagrapi.exceptions import LoginRequired
-from termcolor import colored, cprint
+from instagrapi.exceptions import PleaseWaitFewMinutes
+from termcolor import colored
+from termcolor import cprint
 
 
 class ColoredFormatter(logging.Formatter):
@@ -43,7 +46,7 @@ def login() -> Client:
         logger.info(
             "no previous session was found, attempting manual login...")
         if not client.login(username, password):
-            logger.critical("[X] Failed to login")
+            logger.critical("failed to login")
             exit(1)
         logger.info("successfully logged in")
         client.dump_settings("session.json")
@@ -64,6 +67,8 @@ def login() -> Client:
                 client.set_settings({})
                 client.set_uuids(old_session["uuids"])
                 client.login(username, password)
+                client.dump_settings("session.json")
+            logger.info("successfully logged in via session")
         except Exception:
             logger.exception(
                 "login with session failed, attempting manual login")
@@ -82,7 +87,6 @@ def main():
 
     user_id = client.user_id if len(
         argv) == 1 else client.user_id_from_username(argv[1])
-
     followers_usernames = {
         follower.username
         for follower in client.user_followers(user_id).values()
@@ -90,12 +94,19 @@ def main():
 
     logger.info("fetched followers")
 
-    following_usernames = {
-        following.username
-        for following in client.user_following(user_id).values()
-    }
+    while True:
+        try:
+            following_usernames = {
+                following.username
+                for following in client.user_following(user_id).values()
+            }
 
-    logger.info("fetched following")
+            logger.info("fetched following")
+            break
+        except PleaseWaitFewMinutes:
+            logger.exception("got rate limited, sleeping for 2 minutes...")
+            sleep(120)
+            logger.info("retrying fetching...")
 
     for following_username in following_usernames.difference(
             followers_usernames):
