@@ -40,10 +40,8 @@ def mass_scrap(func: Callable[[ScrapInfo], tuple[list[UserShort], str]]):
     @functools.wraps(func)
     def wrapper(info: ScrapInfo) -> set[str]:
         result: list[UserShort] = []
-        cursors: set[str] = set()
         chunk_amount = info.chunk_amount
         info.report()
-        cursor_errors: int = 0
         debt: int = 0
         i: int = 0
         while i < chunk_amount:
@@ -61,14 +59,9 @@ def mass_scrap(func: Callable[[ScrapInfo], tuple[list[UserShort], str]]):
                 continue
             
             logger.debug(f"Followers/Following got {len(user_list)}, returned cursor: {cursor}")
-            
-            if cursor in cursors or not cursor:
-                logger.debug("invalid cursor received, re-attempting request...")
-                continue
-            
-            cursors.add(cursor)
-            info.cursor = cursor
+
             result += user_list
+            info.cursor = str(len(result))
             i += 1
 
             if not len(user_list) == info.chunk_size:
