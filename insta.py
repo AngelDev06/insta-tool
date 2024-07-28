@@ -14,6 +14,7 @@ def main():
                         help="The name of the account to login")
     parser.add_argument("--password", "--pass",
                         help="The password for the account to login (if omitted b64 decodes the contents of `ps.txt`)")
+    parser.add_argument("-v", "--verbose", "--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--cache", action="store_true",
                         help="Make use of the cache instead of loading from instagram")
 
@@ -25,7 +26,7 @@ def main():
         "login", help="Tries to login and updates the session info"))
 
     args = parser.parse_args()
-    setup_logger()
+    setup_logger(args.verbose)
     args.func(args)
 
 

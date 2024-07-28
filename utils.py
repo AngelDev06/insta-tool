@@ -68,7 +68,7 @@ def login(name: str, password: Optional[str]) -> Client:
             logger.exception(
                 "login with session failed, attempting manual login")
 
-            if not client.login(name, password):
+            if not client.login(name, password, relogin=True):
                 logger.critical("failed to login")
                 exit(1)
             logger.info("successfully logged in manually")
