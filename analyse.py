@@ -1,172 +1,122 @@
 import logging
 import utils
 import functools
-from dataclasses import dataclass
-from random import randint
-from time import sleep
-from math import ceil
+import json
+from itertools import count
 from argparse import Namespace, ArgumentParser
 from pathlib import Path
 from typing import Optional, Literal, Callable
-from instagrapi import Client
-from instagrapi.types import UserShort
-from instagrapi.exceptions import PleaseWaitFewMinutes
+from ensta import Web
 
 logger = logging.getLogger("insta-tool-logger")
-Cache = Optional[dict[Literal["analyse"], dict[str,
-                                               dict[Literal["followers", "following"], list[str]]]]]
 
 
-@dataclass
-class ScrapInfo:
-    user_name: str
-    user_password: str
-    user_id: int
-    client: Client
-    user_count: int
-    chunk_size: int
-    cursor: str
-
-    @property
-    def chunk_amount(self) -> int:
-        return ceil(self.user_count / self.chunk_size)
-
-    def report(self):
-        logger.info(f"Scraping with: total chunks {self.chunk_amount}, size of each {self.chunk_size}, "
-                    f"followers/following count {self.user_count}, user id: {self.user_id}")
-
-
-def mass_scrap(func: Callable[[ScrapInfo], tuple[list[UserShort], str]]):
+def mass_scrap(func: Callable[[Web, str], set[str]]):
     @functools.wraps(func)
-    def wrapper(info: ScrapInfo) -> set[str]:
-        result: list[UserShort] = []
-        chunk_amount = info.chunk_amount
-        info.report()
-        debt: int = 0
-        i: int = 0
-        while i < chunk_amount:
-            logger.info(f"Current chunk number: {i}")
-            try:
-                user_list, cursor = func(info)
-            except PleaseWaitFewMinutes:
-                logger.info(
-                    "Got rate limited, waiting and re-attempting login...")
-                sleep(randint(60, 120))
-                info.client.logout()
-                info.client.login(info.user_name, info.user_password, relogin=True)
-                info.client.dump_settings("session.json")
-                info.client.relogin_attempt = 0
-                continue
-            
-            logger.debug(f"Followers/Following got {len(user_list)}, returned cursor: {cursor}")
+    def wrapper(client: Web, target_id: str, user_count: int) -> set[str]:
+        result: set[str] = set()
+        for i in count(1):
+            logger.debug("attempt count: %d", i)
+            users = func(client, target_id)
+            logger.debug("user count returned: %d", len(users))
+            result |= users
 
-            result += user_list
-            info.cursor = str(len(result))
-            i += 1
+            if len(result) == user_count:
+                break
+            logger.debug(
+                "only %d/%d users were retrieved, re-attempting fetch...",
+                len(result),
+                user_count,
+            )
+        return result
 
-            if not len(user_list) == info.chunk_size:
-                diff = len(user_list) - info.chunk_size
-                debt += diff
-                logger.debug(f"Debt: {debt}")
-
-            if debt < -info.chunk_size:
-                add = -debt // info.chunk_size
-                chunk_amount += add
-                logger.debug("Chunk amount is not enough to cover user amount")
-                logger.debug(f"New chunk amount: {chunk_amount}")
-                debt += add * info.chunk_size
-            elif debt >= info.chunk_size:
-                sub = debt // info.chunk_size
-                chunk_amount -= sub
-                logger.debug(
-                    f"Debt of {debt} reached a chunk size, removing {sub} chunks")
-                debt -= sub * info.chunk_size
-            elif debt < 0 and chunk_amount == i:
-                chunk_amount += 1
-
-            sleep(randint(1, 3))
-
-        logger.info("Scrapping finished")
-        return {user.username for user in result}
     return wrapper
 
 
 @mass_scrap
-def fetch_followers(info: ScrapInfo):
-    return info.client.user_followers_v1_chunk(info.user_id, info.chunk_size, info.cursor)
+def fetch_followers(client: Web, target_id: str) -> set[str]:
+    return {follower.username for follower in client.followers(target_id)}
 
 
 @mass_scrap
-def fetch_following(info: ScrapInfo):
-    return info.client.user_following_v1_chunk(info.user_id, info.chunk_size, info.cursor)
+def fetch_followings(client: Web, target_id: str) -> set[str]:
+    return {following.username for following in client.followings(target_id)}
 
 
-def try_load_from_cache(args: Namespace, cache: Cache):
+def from_cache(args: Namespace) -> Optional[tuple[set[str], set[str]]]:
     if not args.cache:
         return None
-    if account := cache["analyse"].get(args.target, None):
-        return set(account["followers"]), set(account["following"])
-    return None
+    cache_path = Path("user info") / f"{args.target}.json"
+    if not cache_path.is_file():
+        return None
+    with open(cache_path, encoding="utf-8") as file:
+        cache: dict[Literal["followers", "followings"], list[str]] = json.load(
+            file
+        )
+        return set(cache["followers"]), set(cache["followings"])
+
+
+def to_cache(target: str, followers: set[str], followings: set[str]):
+    cache_dir = Path("user info")
+    if not cache_dir.is_dir():
+        cache_dir.mkdir()
+    with open(cache_dir / f"{target}.json", "w", encoding="utf-8") as file:
+        data = {"followers": list(followers), "followings": list(followings)}
+        json.dump(data, file, indent=2)
 
 
 def run(args: Namespace):
     if not args.target:
         args.target = args.name
-    logger.info(f"using target: {args.target}")
-    cache: Cache = utils.get_cache()
-    cached = try_load_from_cache(args, cache)
-    if not cached:
-        client = utils.login(args.name, args.password)
-        client.delay_range = [1, 3]
 
-        logger.info("fetching user id...")
-        user_id = client.user_id if args.target == args.name else int(client.user_id_from_username(
-            args.target))
-
-        logger.info("fetching followers/following count...")
-        target_user = client.user_info(user_id)
-
-        scrap_info = ScrapInfo(
-            user_name=args.name,
-            user_password=client.password,
-            user_id=user_id,
-            client=client,
-            user_count=target_user.follower_count,
-            chunk_size=50,
-            cursor=""
-        )
-
-        logger.info("fetching followers...")
-        followers = fetch_followers(scrap_info)
-        logger.info(f"fetched followers (count = {len(followers)})")
-
-        scrap_info.user_count = target_user.following_count
-        logger.info("fetching following...")
-        following = fetch_following(scrap_info)
-        logger.info(f"fetched following (count = {len(following)})")
-
-        cache["analyse"][args.target] = {"followers": list(
-            followers), "following": list(following)}
-        utils.update_cache(cache)
+    if cache := from_cache(args):
+        logger.info(f"using cached info for: {args.target}")
+        followers, followings = cache
     else:
-        logger.info("using cached info...")
-        followers, following = cached
-        logger.info(f"followers count: {len(followers)}")
-        logger.info(f"following count: {len(following)}")
+        client = utils.login(args.name, args.password)
+        logger.info(f"fetching profile info of: {args.target}")
+        target = client.profile(args.target)
+
+        logger.info(
+            f"fetching followers, total count: {target.follower_count}"
+        )
+        followers = fetch_followers(
+            client, target.user_id, target.follower_count
+        )
+        logger.info(f"fetched followers, total count: {len(followers)}")
+
+        logger.info(
+            f"fetching followings, total count: {target.following_count}"
+        )
+        followings = fetch_followings(
+            client, target.user_id, target.following_count
+        )
+        logger.info(f"fetched followings, total count: {len(followings)}")
+
+        to_cache(args.target, followers, followings)
+        logger.info("cached the result")
 
     if args.reverse:
-        followers, following = following, followers
+        followers, followings = followings, followers
 
     with utils.Writer(args.dest) as writer:
-        for name in following.difference(followers):
+        for name in followings.difference(followers):
             writer.print(name)
 
 
 def setup_parser(parser: ArgumentParser):
-    parser.add_argument("target", nargs='?', default="",
-                        help="The username of the target account")
-    parser.add_argument("--reverse", action="store_true",
-                        help="reverses the check, i.e. determines which accounts the target doesn't follow back")
-    parser.add_argument("--dest", type=Path,
-                        help="An optional file to store the result")
+    parser.add_argument(
+        "target",
+        nargs="?",
+        default="",
+        help="The username of the target account",
+    )
+    parser.add_argument(
+        "--reverse",
+        action="store_true",
+        help="reverses the check, i.e. determines which accounts the target doesn't follow back",
+    )
+    parser.add_argument(
+        "--dest", type=Path, help="An optional file to store the result"
+    )
     parser.set_defaults(func=run)
