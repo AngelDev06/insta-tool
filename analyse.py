@@ -1,7 +1,9 @@
 import logging
-import utils
 import json
-from argparse import Namespace, ArgumentParser
+import sys
+from login import login
+from termcolor import colored
+from argparse import Namespace, ArgumentParser, FileType
 from pathlib import Path
 from typing import Optional, Literal
 from ensta import Web
@@ -53,7 +55,7 @@ def run(args: Namespace):
         logger.info(f"using cached info for: {args.target}")
         followers, followings = cache
     else:
-        client = utils.login(args.name, args.password)
+        client = login(args.name, args.password)
         logger.info(f"fetching profile info of: {args.target}")
         target = client.profile(args.target)
 
@@ -69,10 +71,17 @@ def run(args: Namespace):
 
     if args.reverse:
         followers, followings = followings, followers
-
-    with utils.Writer(args.dest) as writer:
-        for name in followings.difference(followers):
-            writer.print(name)
+    
+    if args.out is sys.stdout:
+        def with_color(text: str) -> str:
+            return colored(text, "green", attrs=("bold", "underline"))
+    else:
+        def with_color(text: str) -> str:
+            return text
+    
+    for name in followings.difference(followers):
+        args.out.write(with_color(name))
+        args.out.write('\n')
 
 
 def setup_parser(parser: ArgumentParser):
@@ -83,11 +92,20 @@ def setup_parser(parser: ArgumentParser):
         help="The username of the target account",
     )
     parser.add_argument(
+        "out",
+        nargs="?",
+        type=FileType("w", encoding="utf-8"),
+        default=sys.stdout,
+        help="An optional file to output the result, defaults to stdout"
+    )
+    parser.add_argument(
         "--reverse",
         action="store_true",
         help="reverses the check, i.e. determines which accounts the target doesn't follow back",
     )
     parser.add_argument(
-        "--dest", type=Path, help="An optional file to store the result"
+        "--cache",
+        action="store_true",
+        help="Uses the cache (if available) instead of fetching from instagram"
     )
     parser.set_defaults(func=run)

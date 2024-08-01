@@ -27,11 +27,6 @@ def main():
         action="store_true",
         help="Enable debug logging",
     )
-    parser.add_argument(
-        "--cache",
-        action="store_true",
-        help="Make use of the cache instead of loading from instagram",
-    )
 
     subparsers = parser.add_subparsers(
         title="Subcommands",
