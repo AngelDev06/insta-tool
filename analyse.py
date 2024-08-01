@@ -1,46 +1,26 @@
 import logging
 import utils
-import functools
 import json
-from itertools import count
 from argparse import Namespace, ArgumentParser
 from pathlib import Path
-from typing import Optional, Literal, Callable
+from typing import Optional, Literal
 from ensta import Web
 
 logger = logging.getLogger("insta-tool-logger")
 
 
-def mass_scrap(func: Callable[[Web, str], set[str]]):
-    @functools.wraps(func)
-    def wrapper(client: Web, target_id: str, user_count: int) -> set[str]:
-        result: set[str] = set()
-        for i in count(1):
-            logger.debug("attempt count: %d", i)
-            users = func(client, target_id)
-            logger.debug("user count returned: %d", len(users))
-            result |= users
-
-            if len(result) == user_count:
-                break
-            logger.debug(
-                "only %d/%d users were retrieved, re-attempting fetch...",
-                len(result),
-                user_count,
-            )
-        return result
-
-    return wrapper
+def fetch_followers(client: Web, target_id: str, count: int) -> set[str]:
+    logger.info(f"fetching followers, total count: {count}")
+    result = {follower.username for follower in client.followers(target_id)}
+    logger.info(f"fetched followers, total count: {len(result)}")
+    return result
 
 
-@mass_scrap
-def fetch_followers(client: Web, target_id: str) -> set[str]:
-    return {follower.username for follower in client.followers(target_id)}
-
-
-@mass_scrap
-def fetch_followings(client: Web, target_id: str) -> set[str]:
-    return {following.username for following in client.followings(target_id)}
+def fetch_followings(client: Web, target_id: str, count: int) -> set[str]:
+    logger.info(f"fetching followings, total count: {count}")
+    result = {following.username for following in client.followings(target_id)}
+    logger.info(f"fetched followings, total count: {len(result)}")
+    return result
 
 
 def from_cache(args: Namespace) -> Optional[tuple[set[str], set[str]]]:
@@ -77,21 +57,12 @@ def run(args: Namespace):
         logger.info(f"fetching profile info of: {args.target}")
         target = client.profile(args.target)
 
-        logger.info(
-            f"fetching followers, total count: {target.follower_count}"
-        )
         followers = fetch_followers(
             client, target.user_id, target.follower_count
-        )
-        logger.info(f"fetched followers, total count: {len(followers)}")
-
-        logger.info(
-            f"fetching followings, total count: {target.following_count}"
         )
         followings = fetch_followings(
             client, target.user_id, target.following_count
         )
-        logger.info(f"fetched followings, total count: {len(followings)}")
 
         to_cache(args.target, followers, followings)
         logger.info("cached the result")
