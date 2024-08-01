@@ -53,5 +53,4 @@ def login(name: Optional[str], password: Optional[str]) -> Web:
                 password = b64decode(data["password"]).decode()
     
     logger.info(f"logging in as: {name}")
-    print(password)
     return Web(name, password)
