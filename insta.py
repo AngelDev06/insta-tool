@@ -1,8 +1,8 @@
-#!/usr/bin/env python
-import analyse
-import login
-import config
 from argparse import ArgumentParser
+
+import analyse
+import config
+import login
 from tool_logger import setup as setup_logger
 
 
@@ -45,9 +45,7 @@ def main():
         )
     )
     config.setup_parser(
-        subparsers.add_parser(
-            "config", help="Configures the bot's account credentials"
-        )
+        subparsers.add_parser("config", help="Configures the bot's account credentials")
     )
 
     args = parser.parse_args()
