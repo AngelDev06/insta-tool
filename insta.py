@@ -18,7 +18,7 @@ def main():
     parser.add_argument(
         "--password",
         "--pass",
-        help="The password for the account to login (if omitted b64 decodes the contents of `ps.txt`)",
+        help="The password of the account to login",
     )
     parser.add_argument(
         "-v",
@@ -36,7 +36,7 @@ def main():
     analyse.setup_parser(
         subparsers.add_parser(
             "analyse",
-            help="Fetches all followers and following from the target and determines which of them don't follow back",
+            help="Fetches all followers and followings from the target and determines which of them don't follow back",
         )
     )
     login.setup_parser(

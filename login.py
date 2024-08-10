@@ -1,26 +1,33 @@
-import json
-import logging
-import os
-from base64 import b64decode
-from instagrapi import Client
-from argparse import ArgumentParser, Namespace
-from typing import Optional, Literal
+from __future__ import annotations
 
-logger = logging.getLogger("insta-tool-logger")
+import json
+import os
+from argparse import ArgumentParser, Namespace
+from base64 import b64decode
+from typing import TYPE_CHECKING, Optional, TypedDict
+
+from tool_logger import logger
+
+if TYPE_CHECKING:
+    from instagrapi import Client
+
+
+class Config(TypedDict):
+    name: str
+    password: str
+
 
 def _get_credentials(name: Optional[str], password: Optional[str]) -> tuple[str, str]:
     if name is not None and password is not None:
         return name, password
 
     if not os.path.isfile("config.json"):
-        logger.critical(
-            "no credentials specified and `config.json` is missing"
-        )
+        logger.critical("no credentials specified and `config.json` is missing")
         exit(1)
 
     with open("config.json", encoding="utf-8") as file:
-        data: dict[Literal["name", "password"], str] = json.load(file)
-        
+        data: Config = json.load(file)
+
     for param in ("name", "password"):
         if locals()[param] is not None:
             continue
@@ -28,16 +35,18 @@ def _get_credentials(name: Optional[str], password: Optional[str]) -> tuple[str,
             logger.critical(f"user {param} is missing from `config.json`")
             exit(1)
 
-        locals()[param] = data[param]
         if param == "password":
-            password = b64decode(password).decode()
+            password = b64decode(data["password"]).decode()
+        else:
+            name = data["name"]
 
     return name, password
 
 
 def login(name: Optional[str], password: Optional[str]) -> Client:
+    from instagrapi import Client
+
     name, password = _get_credentials(name, password)
-    logger.info(f"logging in as: {name}")
     client = Client()
 
     if not os.path.exists("session.json"):
@@ -47,6 +56,8 @@ def login(name: Optional[str], password: Optional[str]) -> Client:
             exit(1)
 
         logger.info(f"logged in as: {client.username}")
+        client.dump_settings("session.json")
+        client.delay_range = [1, 3]
         return client
 
     logger.debug("trying login with previous session")
@@ -58,7 +69,9 @@ def login(name: Optional[str], password: Optional[str]) -> Client:
     try:
         client.get_timeline_feed()
     except Exception:
-        logger.debug("failed to login using the previous session, attempting manual login...")
+        logger.debug(
+            "failed to login using the previous session, attempting manual login..."
+        )
 
         if not client.login(name, password, relogin=True):
             logger.exception("failed to login")
@@ -66,8 +79,9 @@ def login(name: Optional[str], password: Optional[str]) -> Client:
 
         client.dump_settings("session.json")
         client.relogin_attempt -= 1
-    
+
     logger.info(f"logged in as: {client.username}")
+    client.delay_range = [1, 3]
     return client
 
 
