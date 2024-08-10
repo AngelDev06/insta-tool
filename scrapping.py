@@ -69,6 +69,8 @@ def scrap(func: Callable[[ScrapInfo], tuple[list[UserShort], Optional[str]]]):
             if not cursor:
                 break
 
+            sleep(randint(1, 3))
+
         logger.debug("finished scrapping (no next cursor was returned)")
         return result
 
