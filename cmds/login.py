@@ -6,7 +6,7 @@ from argparse import ArgumentParser, Namespace
 from base64 import b64decode
 from typing import TYPE_CHECKING, Optional, TypedDict
 
-from tool_logger import logger
+from .utils.tool_logger import logger
 
 if TYPE_CHECKING:
     from instagrapi import Client

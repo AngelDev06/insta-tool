@@ -3,4 +3,4 @@ ensta-session.json
 config.json
 ps.txt
 user info/*
-__pycache__/*
+**/__pycache__/*

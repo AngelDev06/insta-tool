@@ -1,9 +1,7 @@
 from argparse import ArgumentParser
 
-import analyse
-import config
-import login
-from tool_logger import setup as setup_logger
+from cmds import analyse, config, login
+from cmds.utils.tool_logger import setup as setup_logger
 
 
 def main():
