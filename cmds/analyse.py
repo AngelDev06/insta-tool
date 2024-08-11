@@ -1,9 +1,7 @@
 import sys
 from argparse import ArgumentParser, FileType, Namespace
 
-from .login import login
-from .utils.scrapping import Scrapper
-from .utils.tool_logger import logger
+from .utils.login import get_credentials, login
 from .utils.user_info import UserInfo
 
 
@@ -19,45 +17,16 @@ def using_cache(args: Namespace) -> bool:
 
 def run(args: Namespace):
     if not args.target:
+        if not args.name:
+            args.name, args.password = get_credentials(args.name, args.password)
         args.target = args.name
+
     if using_cache(args):
         return
 
     client = login(args.name, args.password)
-    logger.info(f"fetching profile info of: {args.target}")
-    target = client.user_info_by_username_v1(args.target)
-    ask_for_cache: bool = False
-
-    for list_name in ("followers", "followings"):
-        count: int = (
-            target.follower_count
-            if list_name == "followers"
-            else target.following_count
-        )
-        scrapper = Scrapper(client, target.pk, count, args.chunk_size)
-        logger.info(f"fetching {list_name}, total count {count}")
-
-        if list_name == "followers":
-            followers = scrapper.fetch_followers()
-        else:
-            followings = scrapper.fetch_followings()
-
-        count_received: int = len(locals()[list_name])
-        logger.info(f"fetched {list_name}, total count: {count_received}")
-        ask_for_cache |= count != count_received
-
-    user = UserInfo(args.target, followers, followings)
-
-    if (
-        not ask_for_cache
-        or input(
-            "not all requested users were fetched, should the result be cached? (Y/n) "
-        )
-        == "Y"
-    ):
-        user.to_cache()
-        logger.info("cached the result")
-
+    user = UserInfo.from_api(client, args.target, args.chunk_size)
+    user.to_cache()
     user.dump_difference(args.out, args.reverse)
 
 

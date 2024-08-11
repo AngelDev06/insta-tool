@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 
-from cmds import analyse, config, login
+from cmds import analyse, config, diff, login
 from cmds.utils.tool_logger import setup as setup_logger
 
 
@@ -35,6 +35,12 @@ def main():
         subparsers.add_parser(
             "analyse",
             help="Fetches all followers and followings from the target and determines which of them don't follow back",
+        )
+    )
+    diff.setup_parser(
+        subparsers.add_parser(
+            "diff",
+            help="Checks for any updates to an account since the last time it was cached",
         )
     )
     login.setup_parser(
