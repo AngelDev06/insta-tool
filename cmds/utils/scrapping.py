@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import wraps
-from random import randint
-from time import sleep
+from random import uniform
+from time import sleep, time
 from typing import TYPE_CHECKING, Callable, Optional
 
 from .tool_logger import logger
@@ -27,19 +27,30 @@ def scrap(func: Callable[[Scrapper], tuple[list[UserShort], str]]):
             self.user_id,
         )
 
+        retry_count: int = 0
+
+        def retry(sleep_duration: float):
+            nonlocal retry_count
+            sleep(sleep_duration)
+            client = self.client
+            name = client.username
+            password = client.password
+            client.logout()
+            client.login(name, password, relogin=True)
+            client.dump_settings("session.json")
+            client.relogin_attempt -= 1
+
+            if retry_count == self.retry_max:
+                raise StopIteration()
+
+            retry_count += 1
+
         while True:
             try:
                 user_list, cursor = func(self)
             except ClientUnauthorizedError:
                 logger.debug("got rate limited, waiting and re-attempting login...")
-                sleep(randint(30, 60))
-                client = self.client
-                name = client.username
-                password = client.password
-                client.logout()
-                client.login(name, password, relogin=True)
-                client.dump_settings("session.json")
-                client.relogin_attempt -= 1
+                retry(uniform(5, 10))
                 continue
 
             logger.debug(
@@ -49,13 +60,25 @@ def scrap(func: Callable[[Scrapper], tuple[list[UserShort], str]]):
             )
 
             result |= {user.username for user in user_list}
-            self.cursor = cursor
             logger.info(f"current user count: {len(result)}")
 
             if not cursor:
+                if len(result) != self.user_count:
+                    start = time()
+                    if (
+                        input(
+                            "loop was terminated by instagram before fetching all users, should it continue? (Y/n) "
+                        )
+                        == "Y"
+                    ):
+                        diff = time() - start
+                        duration = uniform(5, 10)
+                        retry(duration - diff if duration > diff else 0)
+                        continue
                 break
 
-            sleep(randint(1, 3))
+            self.cursor = cursor
+            sleep(uniform(2, 4))
 
         logger.debug("finished scrapping (no next cursor was returned)")
         return result
@@ -69,6 +92,7 @@ class Scrapper:
     user_id: str
     user_count: int
     chunk_size: int
+    retry_max: int
     cursor: Optional[str] = ""
 
     @scrap
