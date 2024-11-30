@@ -46,7 +46,7 @@ class UserInfo:
 
     @classmethod
     def from_api(
-        cls, client: Client, username: str, chunk_size: int = 100, retry_max: int = 4
+        cls, client: Client, username: str, chunk_size: int = 100
     ) -> "UserInfo":
         logger.info(f"fetching profile info of: {username}")
         target = client.user_info_by_username_v1(username)
@@ -62,9 +62,8 @@ class UserInfo:
                 user_id=target.pk,
                 user_count=count,
                 chunk_size=chunk_size,
-                retry_max=retry_max,
             )
-            logger.info(f"fetching {list_name}, total count {count}")
+            logger.info(f"fetching {list_name}, total count: {count}")
 
             if list_name == "followers":
                 followers = scrapper.fetch_followers()

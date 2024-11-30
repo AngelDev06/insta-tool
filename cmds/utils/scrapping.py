@@ -16,7 +16,11 @@ if TYPE_CHECKING:
 def scrap(func: Callable[[Scrapper], tuple[list[UserShort], str]]):
     @wraps(func)
     def wrapper(self: "Scrapper") -> set[str]:
-        from instagrapi.exceptions import ClientUnauthorizedError
+        from instagrapi.exceptions import (
+            ChallengeRequired,
+            ClientJSONDecodeError,
+            ClientUnauthorizedError,
+        )
 
         result: set[str] = set()
 
@@ -27,11 +31,23 @@ def scrap(func: Callable[[Scrapper], tuple[list[UserShort], str]]):
             self.user_id,
         )
 
-        retry_count: int = 0
+        def retry() -> bool:
+            start = time()
+            if (
+                input(
+                    "loop was terminated by instagram before fetching all users, should it continue? (Y/n) "
+                ).strip()
+                != "Y"
+            ):
+                return False
 
-        def retry(sleep_duration: float):
-            nonlocal retry_count
-            sleep(sleep_duration)
+            diff = time() - start
+            duration = uniform(5, 10)
+            if duration > diff:
+                duration -= diff
+                logger.debug("sleeping for %f seconds", duration)
+                sleep(duration)
+
             client = self.client
             name = client.username
             password = client.password
@@ -39,19 +55,25 @@ def scrap(func: Callable[[Scrapper], tuple[list[UserShort], str]]):
             client.login(name, password, relogin=True)
             client.dump_settings("session.json")
             client.relogin_attempt -= 1
-
-            if retry_count == self.retry_max:
-                raise StopIteration()
-
-            retry_count += 1
+            logger.debug("reloged in")
+            return True
 
         while True:
             try:
                 user_list, cursor = func(self)
             except ClientUnauthorizedError:
-                logger.debug("got rate limited, waiting and re-attempting login...")
-                retry(uniform(5, 10))
+                if not retry():
+                    break
                 continue
+            except (ClientJSONDecodeError, ChallengeRequired):
+                if (
+                    input(
+                        "json decode failure possibly due to a challenge, should it continue? (Y/n) "
+                    ).strip()
+                    == "Y"
+                ):
+                    continue
+                break
 
             logger.debug(
                 "fetched chunk with total users %d and next cursor being '%s'",
@@ -63,18 +85,8 @@ def scrap(func: Callable[[Scrapper], tuple[list[UserShort], str]]):
             logger.info(f"current user count: {len(result)}")
 
             if not cursor:
-                if len(result) != self.user_count:
-                    start = time()
-                    if (
-                        input(
-                            "loop was terminated by instagram before fetching all users, should it continue? (Y/n) "
-                        )
-                        == "Y"
-                    ):
-                        diff = time() - start
-                        duration = uniform(5, 10)
-                        retry(duration - diff if duration > diff else 0)
-                        continue
+                if len(result) != self.user_count and retry():
+                    continue
                 break
 
             self.cursor = cursor
@@ -92,7 +104,6 @@ class Scrapper:
     user_id: str
     user_count: int
     chunk_size: int
-    retry_max: int
     cursor: Optional[str] = ""
 
     @scrap

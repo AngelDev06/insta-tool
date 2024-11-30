@@ -18,7 +18,7 @@ def run(args: Namespace):
         return
 
     client = login(args.name, args.password)
-    fetched = UserInfo.from_api(client, args.target, args.chunk_size, args.retry_max)
+    fetched = UserInfo.from_api(client, args.target, args.chunk_size)
     fetched.dump_update(cached, args.out)
     fetched.to_cache()
 
@@ -39,11 +39,5 @@ def setup_parser(parser: ArgumentParser):
         type=int,
         default=100,
         help="The size of each chunk to request when scrapping",
-    )
-    parser.add_argument(
-        "--retry-max",
-        type=int,
-        default=3,
-        help="Maximum relogin attempts when scrapping",
     )
     parser.set_defaults(func=run)
