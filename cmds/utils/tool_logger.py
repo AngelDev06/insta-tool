@@ -1,6 +1,7 @@
 import logging
 
 from termcolor import colored
+from colorama import just_fix_windows_console
 
 
 class ColoredFormatter(logging.Formatter):
@@ -20,6 +21,7 @@ logger = logging.getLogger("insta-tool-logger")
 
 
 def setup(debug: bool):
+    just_fix_windows_console()
     if logger.hasHandlers():
         return
     logger.propagate = False

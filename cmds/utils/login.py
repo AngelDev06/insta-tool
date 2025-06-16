@@ -23,7 +23,7 @@ def get_credentials(name: Optional[str], password: Optional[str]) -> tuple[str, 
 
     if not os.path.isfile("config.json"):
         logger.critical("no credentials specified and `config.json` is missing")
-        exit(1)
+        raise RuntimeError("missing credentials")
 
     with open("config.json", encoding="utf-8") as file:
         data: Config = json.load(file)
@@ -33,7 +33,7 @@ def get_credentials(name: Optional[str], password: Optional[str]) -> tuple[str, 
             continue
         if param not in data:
             logger.critical(f"user {param} is missing from `config.json`")
-            exit(1)
+            raise RuntimeError("corrupted config file")
 
         if param == "password":
             password = b64decode(data["password"]).decode()

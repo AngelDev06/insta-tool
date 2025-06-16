@@ -1,33 +1,48 @@
-import sys
+from sys import stdout
 from argparse import ArgumentParser, FileType, Namespace
+from typing import TextIO, cast
+from termcolor import colored
 
 from .utils.login import get_credentials, login
 from .utils.user_info import UserInfo
+from .utils.cache import Cache
+
+
+def output(diff: set[str], out: TextIO) -> None:
+    if out is stdout:
+        for name in diff:
+            out.write(colored(name, "green", attrs=("bold", "underline")))
+            out.write("\n")
+        return
+    for name in diff:
+        out.write(f"{name}\n")
 
 
 def using_cache(args: Namespace) -> bool:
     if not args.cache:
         return False
-    user = UserInfo.from_cache(args.target)
-    if user is None:
+    user = Cache(cast(str, args.target))
+    if not user:
         return False
-    user.dump_difference(args.out, args.reverse)
+    output(user.analyse(args.reverse), args.out)  # type: ignore
     return True
 
 
 def run(args: Namespace):
     if not args.target:
         if not args.name:
-            args.name, args.password = get_credentials(args.name, args.password)
+            args.name, args.password = get_credentials(
+                args.name, args.password
+            )
         args.target = args.name
 
     if using_cache(args):
         return
 
     client = login(args.name, args.password)
-    user = UserInfo.from_api(client, args.target, args.chunk_size)
-    user.to_cache()
-    user.dump_difference(args.out, args.reverse)
+    user = UserInfo.fetch(client, args.target, args.chunk_size)
+    output(user.analyse(args.reverse), args.out)
+    Cache(cast(str, args.target)).dump_update(user)  # type: ignore
 
 
 def setup_parser(parser: ArgumentParser):
@@ -41,7 +56,7 @@ def setup_parser(parser: ArgumentParser):
         "out",
         nargs="?",
         type=FileType("w", encoding="utf-8"),
-        default=sys.stdout,
+        default=stdout,
         help="An optional file to output the result, defaults to stdout",
     )
     parser.add_argument(

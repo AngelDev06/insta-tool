@@ -4,3 +4,4 @@ config.json
 insta.log
 user info/*
 **/__pycache__/*
+.vscode/*

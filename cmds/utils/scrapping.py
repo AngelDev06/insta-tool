@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from functools import wraps
 from random import uniform
 from time import sleep, time
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Callable, cast
 
 from .tool_logger import logger
 
@@ -35,7 +35,7 @@ def scrap(func: Callable[[Scrapper], tuple[list[UserShort], str]]):
             start = time()
             if (
                 input(
-                    "loop was terminated by instagram before fetching all users, should it continue? (Y/n) "
+                    "loop was terminated by instagram before fetching all users, should it continue trying? (Y/n) "
                 ).strip()
                 != "Y"
             ):
@@ -53,7 +53,7 @@ def scrap(func: Callable[[Scrapper], tuple[list[UserShort], str]]):
             password = client.password
             client.logout()
             client.login(name, password, relogin=True)
-            client.dump_settings("session.json")
+            client.dump_settings("session.json")  # type: ignore
             client.relogin_attempt -= 1
             logger.debug("reloged in")
             return True
@@ -81,7 +81,7 @@ def scrap(func: Callable[[Scrapper], tuple[list[UserShort], str]]):
                 cursor,
             )
 
-            result |= {user.username for user in user_list}
+            result |= {cast(str, user.username) for user in user_list}
             logger.info(f"current user count: {len(result)}")
 
             if not cursor:
@@ -104,7 +104,7 @@ class Scrapper:
     user_id: str
     user_count: int
     chunk_size: int
-    cursor: Optional[str] = ""
+    cursor: str = ""
 
     @scrap
     def fetch_followers(self):
