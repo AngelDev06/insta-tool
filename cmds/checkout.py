@@ -62,7 +62,7 @@ def output(args: Namespace, cache: UserCache) -> None:
     if args.username is not None:
         separator = ""
         if not text_table["followers"] and not text_table["followings"]:
-            out.write(f"{args.target} was neither a follower nor a following")
+            out.write(f"{args.username} was neither a follower nor a following")
             return
         if text_table["followers"] and text_table["followings"]:
             separator = " and "
