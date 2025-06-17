@@ -24,16 +24,15 @@ def using_cache(args: Namespace) -> bool:
     user = Cache(cast(str, args.target))
     if not user:
         return False
-    output(user.analyse(args.reverse), args.out)  # type: ignore
+    output(user.analyse(args.reverse), args.out)
     return True
 
 
 def run(args: Namespace):
     if not args.target:
-        if not args.name:
-            args.name, args.password = get_credentials(
-                args.name, args.password
-            )
+        args.name, args.password = get_credentials(
+            args.name, args.password
+        )
         args.target = args.name
 
     if using_cache(args):
@@ -42,7 +41,7 @@ def run(args: Namespace):
     client = login(args.name, args.password)
     user = UserInfo.fetch(client, args.target, args.chunk_size)
     output(user.analyse(args.reverse), args.out)
-    Cache(cast(str, args.target)).dump_update(user)  # type: ignore
+    Cache(cast(str, args.target)).dump_update(user)
 
 
 def setup_parser(parser: ArgumentParser):
@@ -68,7 +67,7 @@ def setup_parser(parser: ArgumentParser):
     parser.add_argument(
         "--reverse",
         action="store_true",
-        help="reverses the check, i.e. determines which accounts the target doesn't follow back",
+        help="Reverses the check, i.e. determines which accounts the target doesn't follow back",
     )
     parser.add_argument(
         "--cache",

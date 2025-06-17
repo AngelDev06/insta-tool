@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 
-from cmds import analyse, config, diff, login
+from cmds import analyse, config, diff, login, log
 from cmds.utils.tool_logger import setup as setup_logger
 
 
@@ -49,7 +49,15 @@ def main():
         )
     )
     config.setup_parser(
-        subparsers.add_parser("config", help="Configures the bot's account credentials")
+        subparsers.add_parser(
+            "config", help="Configures the bot's account credentials"
+        )
+    )
+    log.setup_parser(
+        subparsers.add_parser(
+            "log",
+            help="Logs a user's scan history (from most recent to oldest)",
+        )
     )
 
     args = parser.parse_args()

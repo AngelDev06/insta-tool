@@ -2,7 +2,7 @@ import json
 from termcolor import colored
 from sys import stdout
 from itertools import chain
-from typing import TypedDict, Optional, Self, overload, Any, TextIO
+from typing import TypedDict, Optional, Self, overload, Any, TextIO, Unpack
 from pathlib import Path
 from datetime import datetime
 from .tool_logger import logger
@@ -26,6 +26,11 @@ class UserCacheType(TypedDict):
     followers: list[str]
     followings: list[str]
     changelog: list[ChangelogCacheType]
+
+
+class _OutputUpdateKwargsType(TypedDict):
+    new: set[str]
+    removed: set[str]
 
 
 # holds user information that comes from the cache (also includes changelog info)
@@ -70,7 +75,7 @@ class UserCache:
             changelog[list_name]["removed"] = list(removed)
 
             if out is not None:
-                self._output_update(list_name, added, removed, out)
+                self._output_update(list_name, out, new=added, removed=removed)
 
         if info.follower_count != len(
             info.followers
@@ -110,7 +115,10 @@ class UserCache:
         return self._data["changelog"]
 
     def _output_update(
-        self, list_name: str, added: set[str], removed: set[str], out: TextIO
+        self,
+        list_name: str,
+        out: TextIO,
+        **kwargs: Unpack[_OutputUpdateKwargsType],
     ) -> None:
         if self._data["changelog"]:
             last_changelog = self._data["changelog"][-1]
@@ -120,32 +128,18 @@ class UserCache:
 
         out.write(f"{list_name} list:\n")
 
-        if added:
-            out.write(f"\tnew {list_name}:")
-            for user in added:
-                if out is stdout:
-                    out.write("\n\t\t")
-                    out.write(
-                        colored(
-                            f"+ {user}", "green", attrs=("bold", "underline")
-                        )
-                    )
-                else:
-                    out.write(f"\n\t\t+ {user}")
-            out.write("\n")
-
-        if removed:
-            out.write(f"\tremoved {list_name}:")
-            for user in removed:
-                if out is stdout:
-                    out.write("\n\t\t")
-                    out.write(
-                        colored(
-                            f"- {user}", "red", attrs=("bold", "underline")
-                        )
-                    )
-                else:
-                    out.write(f"\n\t\t- {user}")
+        def style(text: str, color: str) -> str:
+            return (
+                colored(text, color, attrs=("bold", "underline"))
+                if out is stdout
+                else text
+            )
+        
+        for change_type, sign, color in (("new", "+", "green"), ("removed", "-", "red")):
+            out.write(f"\t{change_type} {list_name}")
+            for user in kwargs[change_type]:
+                out.write("\n\t\t")
+                out.write(style(f"{sign} {user}", color))
             out.write("\n")
 
 
@@ -154,7 +148,7 @@ class Cache:
     _users: dict[str, UserCache]
 
     @overload
-    def __new__(cls, username: str) -> UserCache: ...  # type: ignore
+    def __new__(cls, username: str) -> UserCache: ...
 
     @overload
     def __new__(cls, username: None) -> Self: ...

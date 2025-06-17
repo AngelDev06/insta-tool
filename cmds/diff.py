@@ -10,10 +10,9 @@ from .utils.cache import Cache
 
 def run(args: Namespace):
     if not args.target:
-        if not args.name:
-            args.name, args.password = get_credentials(
-                args.name, args.password
-            )
+        args.name, args.password = get_credentials(
+            args.name, args.password
+        )
         args.target = args.name
 
     cached = Cache(cast(str, args.target))
@@ -25,7 +24,7 @@ def run(args: Namespace):
 
     client = login(args.name, args.password)
     fetched = UserInfo.fetch(client, args.target, args.chunk_size)
-    cached.dump_update(fetched, args.out)  # type: ignore
+    cached.dump_update(fetched, args.out)
 
 
 def setup_parser(parser: ArgumentParser):
