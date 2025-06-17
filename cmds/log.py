@@ -1,88 +1,34 @@
-from argparse import ArgumentParser, FileType, Namespace, ArgumentTypeError
+from argparse import ArgumentParser, FileType, Namespace
 from sys import stdout
-from typing import cast, TextIO, Iterable, Union, Literal, Optional, TypedDict
-from datetime import datetime, date
+from typing import cast, TextIO, Iterable, Union, Literal, Optional, TypeAlias
+from datetime import datetime
 from termcolor import colored
 from itertools import product
 from .utils.login import get_credentials, login
 from .utils.cache import Cache, UserCache, ChangelogCacheType
 from .utils.user_info import UserInfo
+from .utils.filters import date_filter, list_filter, change_filter
+from .utils.parsers import date_parser
 
 DATE_OUTPUT_FORMAT = "%d/%m/%Y %I:%M:%S%p"
-ENTRIES_PAIRS: tuple[
-    tuple[Literal["followers"], Literal["followings"]],
-    tuple[Literal["added"], Literal["removed"]],
-] = (("followers", "followings"), ("added", "removed"))
 
-
-class EntriesStatusSubtype(TypedDict):
-    added: bool
-    removed: bool
-
-
-class EntriesStatusType(TypedDict):
-    followers: EntriesStatusSubtype
-    followings: EntriesStatusSubtype
-
-
-def _date_parser(argument: str) -> date:
-    try:
-        return datetime.strptime(argument, "%d-%m-%Y").date()
-    except ValueError:
-        raise ArgumentTypeError(f"'{argument}' is not a proper date")
-
-
-def _date_filter(
-    args: Namespace, changelog: Iterable[ChangelogCacheType]
-) -> Iterable[ChangelogCacheType]:
-    if args.from_date is not None and args.to_date is not None:
-
-        def filterer(item: ChangelogCacheType) -> bool:
-            log_date = date.fromtimestamp(item["timestamp"])
-            return args.from_date <= log_date <= args.to_date
-
-        return filter(filterer, changelog)
-    if args.from_date is not None:
-        return (
-            item
-            for item in changelog
-            if date.fromtimestamp(item["timestamp"]) >= args.from_date
-        )
-    if args.to_date is not None:
-        return (
-            item
-            for item in changelog
-            if date.fromtimestamp(item["timestamp"]) <= args.to_date
-        )
-    return changelog
-
-
-def _list_filter(args: Namespace) -> Union[tuple[str], tuple[str, str]]:
-    if args.list is None:
-        return ("followers", "followings")
-    if args.list == "followers":
-        return ("followers",)
-    return ("followings",)
-
-
-def _change_filter(args: Namespace) -> Iterable[tuple[str, str, str]]:
-    ADDED = ("added", "+", "green")
-    REMOVED = ("removed", "-", "red")
-    if args.change is None:
-        return (ADDED, REMOVED)
-    if args.change == "added":
-        return (ADDED,)
-    return (REMOVED,)
+EntriesStatusType: TypeAlias = dict[
+    Union[Literal["followers"], Literal["followings"]],
+    dict[Union[Literal["added"], Literal["removed"]], bool],
+]
+AddedOrRemovedItrType: TypeAlias = Iterable[
+    Union[Literal["added"], Literal["removed"]]
+]
 
 
 class Renderer:
     def __init__(self, args: Namespace, cache: UserCache) -> None:
         self.out: TextIO = args.out
-        self.lists = _list_filter(args)
-        self.changes = _change_filter(args)
+        self.lists = list_filter(args)
+        self.changes = change_filter(args)
         self.target: str = args.target
         self.username: Optional[str] = args.username
-        self.changelog: Iterable[ChangelogCacheType] = _date_filter(
+        self.changelog: Iterable[ChangelogCacheType] = date_filter(
             args, reversed(cache.changelog)
         )
         self.all: bool = args.all
@@ -116,7 +62,7 @@ class Renderer:
             log_renderer(log)
 
     def _render_log_block_default(self, log: ChangelogCacheType) -> None:
-        if not self.all and self._empty_log(log):
+        if not self.all and self._is_empty(log):
             return
         self._render_log_header(log)
 
@@ -147,14 +93,14 @@ class Renderer:
     def _render_log_block_with_username_filter(
         self, log: ChangelogCacheType
     ) -> None:
-        entries_status: EntriesStatusType = {  # type: ignore
+        entries_status: EntriesStatusType = {
             list_name: {
                 change_type: self.username in log[list_name][change_type]
-                for change_type in ENTRIES_PAIRS[1]
+                for change_type in self._changes_names
             }
-            for list_name in ENTRIES_PAIRS[0]
+            for list_name in self.lists
         }
-        empty_log: bool = self._empty_log(entries_status)
+        empty_log: bool = self._is_empty(entries_status)
 
         if empty_log and not self.all:
             return
@@ -164,9 +110,9 @@ class Renderer:
             return
 
         for list_name in self.lists:
-            if (
-                not entries_status[list_name]["added"]
-                and not entries_status[list_name]["removed"]
+            if not any(
+                entries_status[list_name][change_type]
+                for change_type in self._changes_names
             ):
                 continue
 
@@ -181,13 +127,13 @@ class Renderer:
         self.out.write("\n")
 
     # Note: this works for `entries_status` defined in `_render_log_block_with_username_filter` as well
-    def _empty_log(
+    def _is_empty(
         self, log: Union[ChangelogCacheType, EntriesStatusType]
     ) -> bool:
         return not any(
-            (
-                log[list_name][change_type]
-                for list_name, change_type in product(*ENTRIES_PAIRS)
+            log[list_name][change_type]
+            for list_name, change_type in product(
+                self.lists, self._changes_names
             )
         )
 
@@ -196,6 +142,10 @@ class Renderer:
             DATE_OUTPUT_FORMAT
         )
         self.out.write(f"Changelog - {date}\n")
+
+    @property
+    def _changes_names(self) -> AddedOrRemovedItrType:
+        return cast(AddedOrRemovedItrType, (item[0] for item in self.changes))
 
 
 def run(args: Namespace) -> None:
@@ -238,10 +188,10 @@ def setup_parser(parser: ArgumentParser) -> None:
         help="Display detailed information (i.e. the entire list of followers/followings added/removed)",
     )
     parser.add_argument(
-        "--from-date", type=_date_parser, help="Start date (DD-MM-YYYY)"
+        "--from-date", type=date_parser, help="Start date (DD-MM-YYYY)"
     )
     parser.add_argument(
-        "--to-date", type=_date_parser, help="End date (DD-MM-YYYY)"
+        "--to-date", type=date_parser, help="End date (DD-MM-YYYY)"
     )
     parser.add_argument(
         "--list",

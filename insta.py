@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 
-from cmds import analyse, config, diff, login, log
+from cmds import analyse, config, diff, login, log, checkout
 from cmds.utils.tool_logger import setup as setup_logger
 
 
@@ -57,6 +57,13 @@ def main():
         subparsers.add_parser(
             "log",
             help="Logs a user's scan history (from most recent to oldest)",
+        )
+    )
+    checkout.setup_parser(
+        subparsers.add_parser(
+            "checkout",
+            help="Reconstruct history (i.e. followers/followings list) of a user "
+            "at a specific point in time based on the changelog available",
         )
     )
 
