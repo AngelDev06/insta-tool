@@ -60,7 +60,7 @@ class UserInfo:
             target.following_count,
         )
 
-    def analyse(self, reverse: bool) -> set[str]:
+    def diff(self, reverse: bool) -> set[str]:
         if not reverse:
-            return self.followings.difference(self.followers)
-        return self.followers.difference(self.followings)
+            return self.followings - self.followers
+        return self.followers - self.followings

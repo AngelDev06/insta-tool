@@ -1,14 +1,29 @@
 import json
-from termcolor import colored
-from sys import stdout
 from itertools import chain
-from typing import TypedDict, Optional, Self, overload, Any, TextIO, Unpack
+from typing import (
+    TypedDict,
+    Optional,
+    Self,
+    overload,
+    Any,
+    Unpack,
+    Protocol,
+    Literal,
+    TypeAlias,
+    Iterable,
+    NotRequired,
+)
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, date
+from dataclasses import dataclass, field
+
 from .tool_logger import logger
 from .user_info import UserInfo
 
 CACHE_FOLDER = Path("user info")
+
+ListsType: TypeAlias = Literal["followers", "followings"]
+ChangesType: TypeAlias = Literal["added", "removed"]
 
 
 class UpdateCacheType(TypedDict):
@@ -28,9 +43,30 @@ class UserCacheType(TypedDict):
     changelog: list[ChangelogCacheType]
 
 
-class _OutputUpdateKwargsType(TypedDict):
-    new: set[str]
-    removed: set[str]
+class OutputUpdateKwargsType(TypedDict):
+    added: NotRequired[set[str]]
+    removed: NotRequired[set[str]]
+
+
+class OutputUpdateCallback(Protocol):
+    def __call__(
+        self,
+        list_name: ListsType,
+        **kwargs: Unpack[OutputUpdateKwargsType],
+    ) -> None:
+        pass
+
+
+# user status at a specific point in time (resulted from backtracing cached records)
+@dataclass
+class UserLists:
+    followers: set[str] = field(default_factory=set)
+    followings: set[str] = field(default_factory=set)
+
+    def diff(self, reverse: bool) -> set[str]:
+        if not reverse:
+            return self.followings - self.followers
+        return self.followers - self.followings
 
 
 # holds user information that comes from the cache (also includes changelog info)
@@ -51,8 +87,28 @@ class UserCache:
             return followings.difference(followers)
         return followers.difference(followings)
 
+    def checkout(
+        self,
+        at: date,
+        lists: Iterable[ListsType] = ("followers", "followings"),
+    ) -> UserLists:
+        list_table = {
+            list_name: set(getattr(self, list_name)) for list_name in lists
+        }
+
+        for log in reversed(self.changelog):
+            log_date = date.fromtimestamp(log["timestamp"])
+            if log_date <= at:
+                break
+
+            for list_name in lists:
+                list_table[list_name] -= set(log[list_name]["added"])
+                list_table[list_name] |= set(log[list_name]["removed"])
+
+        return UserLists(**list_table)
+
     def dump_update(
-        self, info: UserInfo, out: Optional[TextIO] = None
+        self, info: UserInfo, callback: Optional[OutputUpdateCallback] = None
     ) -> None:
         changelog: ChangelogCacheType = {
             "timestamp": datetime.now().timestamp(),
@@ -63,19 +119,14 @@ class UserCache:
         for list_name in ("followers", "followings"):
             cached_list: set[str] = set(self._data[list_name])
             new_list: set[str] = getattr(info, list_name)
-            added = new_list.difference(cached_list)
-            removed = cached_list.difference(new_list)
-
-            if not added and not removed:
-                if out is not None:
-                    out.write(f"{list_name} list: no update\n")
-                continue
+            added = new_list - cached_list
+            removed = cached_list - new_list
 
             changelog[list_name]["added"] = list(added)
             changelog[list_name]["removed"] = list(removed)
 
-            if out is not None:
-                self._output_update(list_name, out, new=added, removed=removed)
+            if callback is not None:
+                callback(list_name, added=added, removed=removed)
 
         if info.follower_count != len(
             info.followers
@@ -114,33 +165,9 @@ class UserCache:
     def changelog(self) -> list[ChangelogCacheType]:
         return self._data["changelog"]
 
-    def _output_update(
-        self,
-        list_name: str,
-        out: TextIO,
-        **kwargs: Unpack[_OutputUpdateKwargsType],
-    ) -> None:
-        if self._data["changelog"]:
-            last_changelog = self._data["changelog"][-1]
-            last_date = datetime.fromtimestamp(last_changelog["timestamp"])
-            last_date_text = last_date.strftime("%A %d %B %Y, %I:%M%p")
-            out.write(f"Account Update\nSince: {last_date_text}\n\n")
-
-        out.write(f"{list_name} list:\n")
-
-        def style(text: str, color: str) -> str:
-            return (
-                colored(text, color, attrs=("bold", "underline"))
-                if out is stdout
-                else text
-            )
-        
-        for change_type, sign, color in (("new", "+", "green"), ("removed", "-", "red")):
-            out.write(f"\t{change_type} {list_name}")
-            for user in kwargs[change_type]:
-                out.write("\n\t\t")
-                out.write(style(f"{sign} {user}", color))
-            out.write("\n")
+    @property
+    def lists(self) -> UserLists:
+        return UserLists(set(self.followers), set(self.followings))
 
 
 class Cache:

@@ -1,76 +1,12 @@
 from argparse import ArgumentParser, FileType, Namespace
 from sys import stdout
-from typing import cast, TextIO, Iterable
-from datetime import date
-from termcolor import colored
+from typing import cast
 from .utils.parsers import date_parser
 from .utils.login import get_credentials
-from .utils.cache import Cache, UserCache
+from .utils.cache import Cache
 from .utils.filters import list_filter
-
-
-def output(args: Namespace, cache: UserCache) -> None:
-    out: TextIO = args.out
-    history_point: date = args.date
-    lists = list_filter(args)
-    list_table = {
-        "followers": set(cache.followers),
-        "followings": set(cache.followings),
-    }
-
-    def style(
-        text: str,
-        color: str = "green",
-        attrs: Iterable[str] = ("bold", "underline"),
-    ) -> str:
-        return colored(text, color, attrs=attrs) if out is stdout else text
-
-    for log in reversed(cache.changelog):
-        log_date = date.fromtimestamp(log["timestamp"])
-        if log_date <= history_point:
-            break
-
-        for list_name in lists:
-            list_table[list_name] -= set(log[list_name]["added"])
-            list_table[list_name] |= set(log[list_name]["removed"])
-
-    history_point_text = history_point.strftime("%d/%m/%Y")
-    out.write(f"History for {args.target} at {history_point_text}\n")
-
-    text_table = {"followers": "", "followings": ""}
-
-    for list_name in lists:
-        if args.username is not None:
-            if args.username in list_table[list_name]:
-                text_table[list_name] = f"a {list_name[:-1]}"
-            continue
-        if args.summary:
-            out.write(
-                f"{list_name.capitalize()}: {len(list_table[list_name])}\n"
-            )
-            continue
-
-        out.write(
-            f"{list_name.capitalize()} ({len(list_table[list_name])}):\n"
-        )
-
-        for username in list_table[list_name]:
-            out.write("  ")
-            out.write(style(username))
-            out.write("\n")
-
-    if args.username is not None:
-        separator = ""
-        if not text_table["followers"] and not text_table["followings"]:
-            out.write(f"{args.username} was neither a follower nor a following")
-            return
-        if text_table["followers"] and text_table["followings"]:
-            separator = " and "
-        out.write(
-            f"{args.username} was "
-            f"{text_table['followers']}{separator}{text_table['followings']} "
-            f"of {args.target}\n"
-        )
+from .utils.streams import ColoredOutput
+from .utils.renderers import HistoryPointRenderer
 
 
 def run(args: Namespace) -> None:
@@ -84,7 +20,17 @@ def run(args: Namespace) -> None:
             "Can't reconstruct a point in history for an untracked user\n"
         )
         return
-    output(args, cache)
+    lists = list_filter(args)
+    renderer = HistoryPointRenderer(
+        out=ColoredOutput(args.out, "green"),
+        history_point=args.date,
+        lists=lists,
+        user_lists=cache.checkout(args.date, lists),
+        target=args.target,
+        username=args.username,
+        summary=args.summary,
+    )
+    renderer.render()
 
 
 def setup_parser(parser: ArgumentParser) -> None:

@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 
-from cmds import analyse, config, diff, login, log, checkout
+from cmds import config, diff, login, log, checkout
 from cmds.utils.tool_logger import setup as setup_logger
 
 
@@ -30,12 +30,6 @@ def main():
         title="Subcommands",
         required=True,
         help="The subcommands provided by the tool",
-    )
-    analyse.setup_parser(
-        subparsers.add_parser(
-            "analyse",
-            help="Fetches all followers and followings from the target and determines which of them don't follow back",
-        )
     )
     diff.setup_parser(
         subparsers.add_parser(

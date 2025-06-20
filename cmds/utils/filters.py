@@ -8,6 +8,11 @@ ListFilterRetType: TypeAlias = Union[
     tuple[Literal["followings"]],
     tuple[Literal["followers"], Literal["followings"]],
 ]
+ChangeFilterRetType: TypeAlias = Union[
+    tuple[Literal["added"]],
+    tuple[Literal["removed"]],
+    tuple[Literal["added"], Literal["removed"]],
+]
 
 
 def date_filter(
@@ -43,11 +48,9 @@ def list_filter(args: Namespace) -> ListFilterRetType:
     return ("followings",)
 
 
-def change_filter(args: Namespace):
-    ADDED = ("added", "+", "green")
-    REMOVED = ("removed", "-", "red")
+def change_filter(args: Namespace) -> ChangeFilterRetType:
     if args.change is None:
-        return (ADDED, REMOVED)
+        return ("added", "removed")
     if args.change == "added":
-        return (ADDED,)
-    return (REMOVED,)
+        return ("added",)
+    return ("removed",)
