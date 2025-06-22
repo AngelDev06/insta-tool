@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 
-from cmds import config, diff, login, log, checkout
+from cmds import config, diff, login, log, checkout, compare
 from cmds.utils.tool_logger import setup as setup_logger
 
 
@@ -58,6 +58,13 @@ def main():
             "checkout",
             help="Reconstruct history (i.e. followers/followings list) of a user "
             "at a specific point in time based on the changelog available",
+        )
+    )
+    compare.setup_parser(
+        subparsers.add_parser(
+            "compare",
+            help="Provides comparison information between two user records "
+            "(i.e. mutual followers/followings or differences)",
         )
     )
 

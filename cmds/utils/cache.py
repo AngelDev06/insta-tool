@@ -6,12 +6,10 @@ from typing import (
     Self,
     overload,
     Any,
-    Unpack,
     Protocol,
     Literal,
     TypeAlias,
     Iterable,
-    NotRequired,
 )
 from pathlib import Path
 from datetime import datetime, date
@@ -43,17 +41,8 @@ class UserCacheType(TypedDict):
     changelog: list[ChangelogCacheType]
 
 
-class OutputUpdateKwargsType(TypedDict):
-    added: NotRequired[set[str]]
-    removed: NotRequired[set[str]]
-
-
 class OutputUpdateCallback(Protocol):
-    def __call__(
-        self,
-        list_name: ListsType,
-        **kwargs: Unpack[OutputUpdateKwargsType],
-    ) -> None:
+    def __call__(self, list_name: ListsType, **kwargs: set[str]) -> None:
         pass
 
 
@@ -67,6 +56,18 @@ class UserLists:
         if not reverse:
             return self.followings - self.followers
         return self.followers - self.followings
+
+    def __sub__(self, other: Self):
+        return UserLists(
+            followers=self.followers - other.followers,
+            followings=self.followings - other.followings,
+        )
+
+    def __and__(self, other: Self):
+        return UserLists(
+            followers=self.followers & other.followers,
+            followings=self.followings & other.followings,
+        )
 
 
 # holds user information that comes from the cache (also includes changelog info)
