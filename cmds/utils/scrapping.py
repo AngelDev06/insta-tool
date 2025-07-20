@@ -4,6 +4,7 @@ from functools import wraps
 from random import uniform
 from time import sleep, time
 from typing import TYPE_CHECKING, Any, Protocol, cast
+from .constants import SESSIONS_FOLDER
 from .tool_logger import logger
 
 if TYPE_CHECKING:
@@ -50,12 +51,12 @@ def scrap(callback: ScrapCallback):
                 logger.debug("sleeping for %f seconds", duration)
                 sleep(duration)
 
-            client = self.client
+            client: Client = self.client
             name = client.username
             password = client.password
             client.logout()
             client.login(name, password, relogin=True)
-            client.dump_settings("session.json")  # type: ignore
+            client.dump_settings(SESSIONS_FOLDER / f"{client.user_id}.json")
             client.relogin_attempt -= 1
             logger.debug("reloged in")
             return True
