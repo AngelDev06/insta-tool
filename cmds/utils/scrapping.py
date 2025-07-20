@@ -1,11 +1,9 @@
 from __future__ import annotations
-
 from dataclasses import dataclass
 from functools import wraps
 from random import uniform
 from time import sleep, time
-from typing import TYPE_CHECKING, Callable, cast
-
+from typing import TYPE_CHECKING, Any, Protocol, cast
 from .tool_logger import logger
 
 if TYPE_CHECKING:
@@ -13,16 +11,20 @@ if TYPE_CHECKING:
     from instagrapi.types import UserShort
 
 
-def scrap(func: Callable[[Scrapper], tuple[list[UserShort], str]]):
-    @wraps(func)
-    def wrapper(self: "Scrapper") -> set[str]:
+class ScrapCallback(Protocol):
+    def __call__(_self, self: Any) -> tuple[list[UserShort], str]: ...
+
+
+def scrap(callback: ScrapCallback):
+    @wraps(callback)
+    def wrapper(self: Any) -> dict[int, str]:
         from instagrapi.exceptions import (
             ChallengeRequired,
             ClientJSONDecodeError,
             ClientUnauthorizedError,
         )
 
-        result: set[str] = set()
+        result: dict[int, str] = {}
 
         logger.debug(
             "scrapping a total of %d users in chunks of size %d from target with id %s",
@@ -60,7 +62,7 @@ def scrap(func: Callable[[Scrapper], tuple[list[UserShort], str]]):
 
         while True:
             try:
-                user_list, cursor = func(self)
+                user_list, cursor = callback(self)
             except ClientUnauthorizedError:
                 if not retry():
                     break
@@ -80,8 +82,9 @@ def scrap(func: Callable[[Scrapper], tuple[list[UserShort], str]]):
                 len(user_list),
                 cursor,
             )
-
-            result |= {cast(str, user.username) for user in user_list}
+            result.update(
+                (int(user.pk), cast(str, user.username)) for user in user_list
+            )
             logger.info(f"current user count: {len(result)}")
 
             if not cursor:

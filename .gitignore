@@ -1,7 +1,7 @@
-session.json
 ensta-session.json
-config.json
 insta.log
 user info/*
+config/*
+sessions/*
 **/__pycache__/*
 .vscode/*

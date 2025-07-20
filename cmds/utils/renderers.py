@@ -1,38 +1,19 @@
-import operator
 from dataclasses import dataclass, field
-from datetime import date, datetime
-from itertools import product
-from typing import (
-    Iterable,
-    Optional,
-    TypeAlias,
-    Union,
-    Literal,
-    cast,
-    Callable,
-)
+from datetime import date
+from typing import Iterable, Optional, Literal, Collection, Union
 from .streams import ColoredOutput
-from .cache import UserLists, ChangelogCacheType
+from .models.user import BasicUser
+from .models.cached_user import CachedChangelogEntry
+from .models.update import BasicUserUpdate, BasicUpdate
+from .models.diff import UserDiff, Diff
+from .constants import (
+    DATE_OUTPUT_FORMAT,
+    CHANGES_ATTRS,
+    ListsType,
+    ChangesType,
+    DiffsType,
+)
 
-ChangesInfoType: TypeAlias = Iterable[
-    Union[
-        tuple[Literal["added"], Literal["+"], Literal["green"]],
-        tuple[Literal["removed"], Literal["-"], Literal["red"]],
-        tuple[str, Literal[""], Literal["green"]],
-    ]
-]
-ListsType: TypeAlias = Literal["followers", "followings"]
-ChangesType: TypeAlias = Union[Literal["added", "removed"], str]
-IsEmptyLogType: TypeAlias = dict[
-    Literal["followers", "followings"],
-    dict[Literal["added", "removed"], bool],
-]
-
-DATE_OUTPUT_FORMAT = "%d/%m/%Y %I:%M:%S%p"
-CHANGES_TABLE = {
-    "added": ("added", "+ ", "green"),
-    "removed": ("removed", "- ", "red"),
-}
 USER_COMPARISON_TEXT_TABLE = {
     "mutuals": "mutuals",
     "diff": "differences",
@@ -44,7 +25,7 @@ USER_COMPARISON_TEXT_TABLE = {
 class BasicListRenderer:
     out: ColoredOutput
 
-    def render(self, userset: set[str]):
+    def render(self, userset: frozenset[str]):
         for username in userset:
             self.out.write("  ")
             self.out.cwrite(username)
@@ -56,7 +37,7 @@ class ListsDiffRenderer(BasicListRenderer):
     at: Optional[date]
     reverse: bool
 
-    def render(self, userset: set[str]):
+    def render(self, userset: frozenset[str]):
         comparison_txt = (
             "followings - followers"
             if not self.reverse
@@ -75,7 +56,7 @@ class ListsDiffRenderer(BasicListRenderer):
 class HistoryPointRenderer(BasicListRenderer):
     history_point: date
     lists: Iterable[ListsType]
-    user_lists: UserLists
+    state: BasicUser
     target: str
     username: Optional[str]
     summary: bool
@@ -86,7 +67,9 @@ class HistoryPointRenderer(BasicListRenderer):
         additional_text: list[str] = []
 
         for list_name in self.lists:
-            userset: set[str] = getattr(self.user_lists, list_name)
+            userset: frozenset[str] = getattr(
+                self.state, f"{list_name}_usernames"
+            )
             if self.username is not None:
                 if self.username in userset:
                     additional_text.append(f"a {list_name[:-1]}")
@@ -116,84 +99,90 @@ class DiffRenderer:
     username: Optional[str]
     detailed: bool
 
-    def render(self, **kwargs: UserLists) -> None:
+    def render(self, user_update: Union[BasicUserUpdate, UserDiff]) -> None:
+        """Renders updates that were performed in a user list between two points in time
+        (e.g. added/removed/renamed users)
+
+        Args:
+            user_update (BasicUserUpdate): The updates that were performed
+        """
         block_renderer = (
             self.render_block_with_username_filter
             if self.username is not None
             else self.render_block
         )
         for list_name in self.lists:
-            block_renderer(
-                list_name,
-                **{
-                    change_type: getattr(userset, list_name)
-                    for change_type, userset in kwargs.items()
-                },
-            )
+            block_renderer(list_name, getattr(user_update, list_name))
 
     def render_block(
-        self,
-        list_name: ListsType,
-        **kwargs: set[str],
+        self, list_name: ListsType, update: Union[BasicUpdate, Diff]
     ) -> None:
         if list_name not in self.lists:
             return
-        if not any(userset for userset in kwargs.values()):
+        if not update:
             self.out.write(f"{list_name.capitalize()}: No Update\n")
             return
         self.out.write(f"{list_name.capitalize()}:\n")
 
-        for change_type, sign, color in self.changes_attrs:
-            userset = kwargs[change_type]  # type: ignore
-            if not userset:
+        for change_type in self.changes:
+            usernames: frozenset[str] = getattr(
+                update, f"{change_type}_usernames"
+            )
+            if not usernames:
                 continue
-            self.out.color = color
-            self.render_change_header(change_type, sign, userset)
+            self.render_change_header(change_type, usernames)
 
             if not self.detailed:
                 continue
-
-            for username in userset:
-                self.out.write("    ")
-                self.out.cwrite(f"{sign}{username}")
-                self.out.write("\n")
+            self.render_username_list(change_type, usernames)
 
     def render_block_with_username_filter(
-        self, list_name: ListsType, **kwargs: set[str]
+        self, list_name: ListsType, update: Union[BasicUpdate, Diff]
     ):
-        entries_status = {
-            change_type: self.username in userset  # type: ignore
-            for change_type, userset in kwargs.items()
-        }
-        if not any(
-            entries_status[change_type] for change_type in self.changes
-        ):
+        if list_name not in self.lists:
+            return
+        if update.is_empty(self.username):
             return
 
         self.out.write(f"{list_name.capitalize()}:\n")
-        for change_type, sign, color in self.changes_attrs:
-            if not entries_status[change_type]:
+        for change_type in self.changes:
+            if not getattr(update, f"has_username_on_{change_type}")(
+                self.username
+            ):
                 continue
-            self.out.color = color
-            self.out.write("  ")
-            self.out.cwrite(f"{sign}{self.username}")
-            self.out.write("\n")
+            self.render_username(change_type)
 
     def render_change_header(
-        self, change_type: str, sign: str, userset: set[str]
+        self,
+        change_type: ChangesType,
+        userset: Collection[str],
     ):
+        sign, color = CHANGES_ATTRS[change_type]
+        self.out.color = color
         self.out.attrs = ("bold",)
         self.out.write("  ")
         self.out.cwrite(f"{sign.strip()}{len(userset)} {change_type}")
         self.out.write("\n")
         self.out.attrs = ("bold", "underline")
 
-    @property
-    def changes_attrs(self) -> ChangesInfoType:
-        return cast(
-            ChangesInfoType,
-            (CHANGES_TABLE[change_type] for change_type in self.changes),
-        )
+    def render_username(self, change_type: ChangesType):
+        sign, color = CHANGES_ATTRS[change_type]
+        self.out.color = color
+        self.out.write("  ")
+        self.out.cwrite(f"{sign}{self.username}")
+        self.out.write("\n")
+
+    def render_username_list(
+        self,
+        change_type: ChangesType,
+        userset: Collection[str],
+    ):
+        sign, color = CHANGES_ATTRS[change_type]
+        self.out.color = color
+        for username in userset:
+            self.out.write("    ")
+            self.out.cwrite(f"{sign}{username}")
+            self.out.write("\n")
 
 
 @dataclass
@@ -201,9 +190,9 @@ class RecordsDiffRenderer(DiffRenderer):
     from_date: Optional[date]
     to_date: Optional[date]
 
-    def render(self, **kwargs: UserLists) -> None:
+    def render(self, user_update: BasicUserUpdate) -> None:  # type: ignore[override]
         self.render_header()
-        super().render(**kwargs)
+        super().render(user_update)
 
     def render_header(self) -> None:
         self.out.write("Account Update\n")
@@ -217,10 +206,12 @@ class RecordsDiffRenderer(DiffRenderer):
 @dataclass
 class ChangelogRenderer(DiffRenderer):
     target: str
-    changelog: Iterable[ChangelogCacheType]
+    changelog: Iterable[CachedChangelogEntry]
     all: bool
 
     def render(self) -> None:  # type: ignore[override]
+        """Renders the full list of log entries (from most recent to the oldest one),
+        each including updates such as added/removed/renamed users"""
         extra_header = (
             f"Filtered by username: {self.username}\n"
             if self.username is not None
@@ -228,49 +219,20 @@ class ChangelogRenderer(DiffRenderer):
         )
         self.out.write(f"Logs for {self.target}\n{extra_header}\n")
 
-        log_is_empty_checker = (
-            self.is_empty_for_username
-            if self.username is not None
-            else self.is_empty
-        )
         for log in self.changelog:
-            empty_log: bool = log_is_empty_checker(log)
+            empty_log: bool = log.is_empty(self.username)
             if not self.all and empty_log:
                 continue
             self.render_log_header(log)
             if empty_log and self.username is not None:
                 self.out.write("No Update\n\n")
                 continue
-            # render changes per list
-            super().render(
-                **{
-                    change_type: UserLists(
-                        **{
-                            list_name: set(log[list_name][change_type])
-                            for list_name in self.lists
-                        }
-                    )
-                    for change_type in self.changes
-                }
-            )
+            super().render(log)
             self.out.write("\n")
 
-    def render_log_header(self, log: ChangelogCacheType) -> None:
-        date = datetime.fromtimestamp(log["timestamp"]).strftime(
-            DATE_OUTPUT_FORMAT
-        )
-        self.out.write(f"Changelog - {date}\n")
-
-    def is_empty(self, log: ChangelogCacheType) -> bool:
-        return not any(
-            log[list_name][change_type]
-            for list_name, change_type in product(self.lists, self.changes)
-        )
-
-    def is_empty_for_username(self, log: ChangelogCacheType) -> bool:
-        return not any(
-            self.username in log[list_name][change_type]
-            for list_name, change_type in product(self.lists, self.changes)
+    def render_log_header(self, log: CachedChangelogEntry) -> None:
+        self.out.write(
+            f"Changelog - {log.timestamp.strftime(DATE_OUTPUT_FORMAT)}\n"
         )
 
 
@@ -278,7 +240,7 @@ class ChangelogRenderer(DiffRenderer):
 class UsersDiffRendererData:
     name: str
     date: Optional[date]
-    lists: UserLists
+    data: BasicUser
 
     def __str__(self) -> str:
         return (
@@ -290,8 +252,9 @@ class UsersDiffRendererData:
 
 @dataclass
 class UsersDiffRenderer(DiffRenderer):
-    changes: Iterable[str] = field(init=False)
+    changes: Iterable[DiffsType] = field(init=False)
     username: Optional[str] = field(init=False)
+    diff_attrs: dict[DiffsType, str] = field(init=False)
     user1: UsersDiffRendererData
     user2: UsersDiffRendererData
     comparison_type: Literal["mutuals", "diff", "both"]
@@ -301,42 +264,41 @@ class UsersDiffRenderer(DiffRenderer):
         if self.comparison_type == "mutuals":
             self.changes = ("mutuals",)
         elif self.comparison_type == "diff":
-            self.changes = (self.user1.name, self.user2.name)
+            self.changes = ("user1", "user2")
         else:
-            self.changes = ("mutuals", self.user1.name, self.user2.name)
+            self.changes = ("mutuals", "user1", "user2")  # type: ignore[override]
+        self.diff_attrs = {
+            "user1": self.user1.name,
+            "user2": self.user2.name,
+            "mutuals": "mutuals",
+        }
 
     def render(self):  # type: ignore[override]
         self.out.write(
             f"User Comparison ({USER_COMPARISON_TEXT_TABLE[self.comparison_type]})\n"
         )
-        self.out.write(
-            f"Between: {self.user1} and {self.user2}\n"
-        )
-        operator_table: dict[
-            str, Callable[[UserLists, UserLists], UserLists]
-        ] = {
-            "mutuals": operator.and_,
-            self.user1.name: operator.sub,
-            self.user2.name: lambda x, y: y - x,
-        }
+        self.out.write(f"Between: {self.user1} and {self.user2}\n")
         super().render(
-            **{
-                change_type: operator_table[change_type](
-                    self.user1.lists, self.user2.lists
-                )
-                for change_type in self.changes
-            }
+            self.user1.data.diffs_from(
+                self.user2.data, self.lists, self.changes
+            )
         )
 
-    def render_change_header(
-        self, change_type: str, sign: str, userset: set[str]
+    def render_change_header( # type: ignore[override]
+        self, change_type: DiffsType, userset: Collection[str]
     ):
         self.out.attrs = ("bold",)
+        self.out.color = "light_cyan"
         self.out.write("  ")
-        self.out.cwrite(f"{change_type} ({len(userset)})")
+        self.out.cwrite(f"{self.diff_attrs[change_type]} ({len(userset)})")
         self.out.write("\n")
         self.out.attrs = ("bold", "underline")
 
-    @property
-    def changes_attrs(self) -> ChangesInfoType:
-        return ((item, "", "green") for item in self.changes)
+    def render_username_list( # type: ignore[override]
+        self, change_type: DiffsType, userset: Collection[str]
+    ):
+        self.out.color = "green"
+        for username in userset:
+            self.out.write("    ")
+            self.out.cwrite(username)
+            self.out.write("\n")

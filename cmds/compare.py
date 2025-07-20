@@ -1,11 +1,10 @@
 from argparse import ArgumentParser, Namespace, FileType
 from sys import stdout
-from typing import cast
 from .utils.parsers import date_parser
 from .utils.filters import list_filter
 from .utils.streams import ColoredOutput
-from .utils.cache import Cache
 from .utils.renderers import UsersDiffRenderer, UsersDiffRendererData
+from .utils.models.cached_user import CachedUser
 
 
 def get_comparison_type(args: Namespace):
@@ -18,17 +17,18 @@ def get_comparison_type(args: Namespace):
 
 def run(args: Namespace):
     lists = list_filter(args)
-    cached1 = Cache(cast(str, args.user1))
-    cached2 = Cache(cast(str, args.user2))
+    cached1 = CachedUser.get(args.user1)
+    cached2 = CachedUser.get(args.user2)
+
     user1 = (
         cached1.checkout(args.record1, lists)
         if args.record1 is not None
-        else cached1.lists
+        else cached1
     )
     user2 = (
         cached2.checkout(args.record2, lists)
         if args.record2 is not None
-        else cached2.lists
+        else cached2
     )
 
     renderer = UsersDiffRenderer(
@@ -36,12 +36,12 @@ def run(args: Namespace):
         lists=lists,
         detailed=not args.summary,
         user1=UsersDiffRendererData(
-            name=args.user1, date=args.record1, lists=user1
+            name=args.user1, date=args.record1, data=user1
         ),
         user2=UsersDiffRendererData(
-            name=args.user2, date=args.record2, lists=user2
+            name=args.user2, date=args.record2, data=user2
         ),
-        comparison_type=get_comparison_type(args)
+        comparison_type=get_comparison_type(args),
     )
     renderer.render()
 

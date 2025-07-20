@@ -1,56 +1,45 @@
 from argparse import Namespace
-from typing import Iterable, Union, Literal, TypeAlias
-from datetime import date
-from .cache import ChangelogCacheType
-
-ListFilterRetType: TypeAlias = Union[
-    tuple[Literal["followers"]],
-    tuple[Literal["followings"]],
-    tuple[Literal["followers"], Literal["followings"]],
-]
-ChangeFilterRetType: TypeAlias = Union[
-    tuple[Literal["added"]],
-    tuple[Literal["removed"]],
-    tuple[Literal["added"], Literal["removed"]],
-]
+from typing import Iterable
+from .models.cached_user import CachedUser, CachedChangelogEntry
+from .constants import LISTS, ListsType, CHANGES, ChangesType
 
 
 def date_filter(
-    args: Namespace, changelog: Iterable[ChangelogCacheType]
-) -> Iterable[ChangelogCacheType]:
+    args: Namespace, cached: CachedUser
+) -> Iterable[CachedChangelogEntry]:
+    iterable = reversed(cached.changelog)
     if args.from_date is not None and args.to_date is not None:
-
-        def filterer(item: ChangelogCacheType) -> bool:
-            log_date = date.fromtimestamp(item["timestamp"])
-            return args.from_date <= log_date <= args.to_date
-
-        return filter(filterer, changelog)
+        return (
+            entry
+            for entry in iterable
+            if args.from_date <= entry.timestamp.date() <= args.to_date
+        )
     if args.from_date is not None:
         return (
-            item
-            for item in changelog
-            if date.fromtimestamp(item["timestamp"]) >= args.from_date
+            entry
+            for entry in iterable
+            if entry.timestamp.date() >= args.from_date
         )
     if args.to_date is not None:
         return (
-            item
-            for item in changelog
-            if date.fromtimestamp(item["timestamp"]) <= args.to_date
+            entry
+            for entry in iterable
+            if entry.timestamp.date() <= args.to_date
         )
-    return changelog
+    return iterable
 
 
-def list_filter(args: Namespace) -> ListFilterRetType:
+def list_filter(args: Namespace) -> Iterable[ListsType]:
     if args.list is None:
-        return ("followers", "followings")
-    if args.list == "followers":
-        return ("followers",)
-    return ("followings",)
+        return LISTS
+    if args.list in LISTS:
+        return (args.list,)
+    raise RuntimeError("`list` argument is invalid")
 
 
-def change_filter(args: Namespace) -> ChangeFilterRetType:
+def change_filter(args: Namespace) -> Iterable[ChangesType]:
     if args.change is None:
-        return ("added", "removed")
-    if args.change == "added":
-        return ("added",)
-    return ("removed",)
+        return CHANGES
+    if args.change in CHANGES:
+        return (args.change,)
+    raise RuntimeError("`change` argument is invalid")

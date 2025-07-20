@@ -1,13 +1,12 @@
 from argparse import ArgumentParser, FileType, Namespace
 from sys import stdout
 from datetime import datetime
-from typing import cast
 from ..utils.parsers import date_parser
 from ..utils.streams import ColoredOutput
-from ..utils.cache import Cache
 from ..utils.login import get_credentials, login
-from ..utils.user_info import UserInfo
 from ..utils.renderers import ListsDiffRenderer
+from ..utils.models.cached_user import CachedUser
+from ..utils.models.fetched_user import FetchedUser
 
 
 def run(args: Namespace):
@@ -15,7 +14,7 @@ def run(args: Namespace):
         args.name, args.password = get_credentials(args.name, args.password)
         args.target = args.name
 
-    cache = Cache(cast(str, args.target))
+    cached = CachedUser.get(args.target)  
     renderer = ListsDiffRenderer(
         out=ColoredOutput(args.out, "green"),
         at=args.date,
@@ -23,13 +22,13 @@ def run(args: Namespace):
     )
 
     if args.date is not None:
-        user = cache.checkout(args.date)
+        state = cached.checkout(args.date)
     else:
         client = login(args.name, args.password)
-        user = UserInfo.fetch(client, args.target, args.chunk_size)
-        cache.dump_update(user)
-
-    renderer.render(user.diff(args.reverse))
+        state = FetchedUser.fetch(client, args.target, args.chunk_size)
+        cached.dump_update(state)
+    
+    renderer.render(state.diff(args.reverse))
 
 
 def setup_parser(parser: ArgumentParser) -> None:

@@ -1,13 +1,13 @@
 from argparse import ArgumentParser, FileType, Namespace
 from sys import stdout
-from typing import cast
 from ..utils.parsers import date_parser
 from ..utils.login import get_credentials, login
-from ..utils.cache import Cache, UserLists
 from ..utils.streams import ColoredOutput
 from ..utils.filters import list_filter, change_filter
-from ..utils.user_info import UserInfo
 from ..utils.renderers import RecordsDiffRenderer
+from ..utils.models.cached_user import CachedUser
+from ..utils.models.fetched_user import FetchedUser
+from ..utils.constants import LISTS, CHANGES
 
 
 def run(args: Namespace) -> None:
@@ -15,12 +15,12 @@ def run(args: Namespace) -> None:
         args.name, args.password = get_credentials(args.name, args.password)
         args.target = args.name
 
-    cache = Cache(cast(str, args.target))
+    cached = CachedUser.get(args.target)
     renderer = RecordsDiffRenderer(
         out=ColoredOutput(args.out, "green"),
         lists=list_filter(args),
         changes=change_filter(args),
-        username=None,
+        username=args.username,
         detailed=not args.summary,
         from_date=args.date1,
         to_date=args.date2,
@@ -28,33 +28,23 @@ def run(args: Namespace) -> None:
 
     if args.date2 is None:
         client = login(args.name, args.password)
-        record2 = UserInfo.fetch(client, args.target, args.chunk_size)
+        record2 = FetchedUser.fetch(client, args.target, args.chunk_size)
 
         if args.date1 is None:
-            cache.dump_update(record2, renderer.render_block)
+            cached.dump_update(record2, renderer.render_block)
             return
-        cache.dump_update(record2)
+        cached.dump_update(record2)
     else:
-        record2 = cache.checkout(args.date2, renderer.lists)
+        record2 = cached.checkout(args.date2, renderer.lists)
 
     record1 = (
-        cache.lists
+        cached
         if args.date1 is None
-        else cache.checkout(args.date1, renderer.lists)
+        else cached.checkout(args.date1, renderer.lists)
     )
 
-    record_table = {"added": (record2, record1), "removed": (record1, record2)}
     renderer.render(
-        **{
-            change_type: UserLists(
-                **{
-                    list_name: getattr(record_table[change_type][0], list_name)
-                    - getattr(record_table[change_type][1], list_name)
-                    for list_name in renderer.lists
-                }
-            )
-            for change_type in renderer.changes
-        }
+        record2.updates_from(record1, renderer.lists, renderer.changes)  # type: ignore
     )
 
 
@@ -82,16 +72,20 @@ def setup_parser(parser: ArgumentParser) -> None:
     parser.add_argument(
         "-l",
         "--list",
-        choices=("followers", "followings"),
+        choices=LISTS,
         help="An optional to display just the 'followers' or 'following' list "
         "(by default it displays both)",
     )
     parser.add_argument(
         "-c",
         "--change",
-        choices=("added", "removed"),
+        choices=CHANGES,
         help="Display only one change type in the output "
-        "(i.e. only 'added' or 'removed' users, defaults to both)",
+        "(i.e. only added/removed/renamed users)",
+    )
+    parser.add_argument(
+        "--username",
+        help="Filter by username (only show updates for a specific user)",
     )
     parser.add_argument(
         "--summary",

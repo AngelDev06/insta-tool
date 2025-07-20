@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 
-from cmds import config, diff, login, log, checkout, compare
+from cmds import diff, login, log, checkout, compare
 from cmds.utils.tool_logger import setup as setup_logger
 
 
@@ -42,11 +42,6 @@ def main():
             "login", help="Tries to login and updates the session info"
         )
     )
-    config.setup_parser(
-        subparsers.add_parser(
-            "config", help="Configures the bot's account credentials"
-        )
-    )
     log.setup_parser(
         subparsers.add_parser(
             "log",
@@ -64,6 +59,7 @@ def main():
         subparsers.add_parser(
             "compare",
             help="Provides comparison information between two user records "
+            "(this only operates on cache, i.e. it does not dynamically fetch information)"
             "(i.e. mutual followers/followings or differences)",
         )
     )
