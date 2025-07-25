@@ -6,6 +6,7 @@ from time import sleep, time
 from typing import TYPE_CHECKING, Any, Protocol, cast
 from .constants import SESSIONS_FOLDER
 from .tool_logger import logger
+from .bots import Config
 
 if TYPE_CHECKING:
     from instagrapi import Client
@@ -51,11 +52,15 @@ def scrap(callback: ScrapCallback):
                 logger.debug("sleeping for %f seconds", duration)
                 sleep(duration)
 
+            bot = Config.get().bots[self.client.user_id]
             client: Client = self.client
-            name = client.username
-            password = client.password
             client.logout()
-            client.login(name, password, relogin=True)
+            client.login(
+                bot.username,
+                bot.password,
+                relogin=True,
+                verification_code=bot.tfa_code,
+            )
             client.dump_settings(SESSIONS_FOLDER / f"{client.user_id}.json")
             client.relogin_attempt -= 1
             logger.debug("reloged in")
