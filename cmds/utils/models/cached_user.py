@@ -8,7 +8,7 @@ from .user import BasicUser
 from .update import BasicUpdate, BasicUserUpdate, Update
 from ..tool_logger import logger
 from ..constants import ListsType, LISTS, CHANGES, CACHE_FOLDER
-from ..uids import get_uid_table, store_uid
+from ..uids import UIDMap
 
 _cached_users: dict[str, CachedUser] = {}
 
@@ -42,9 +42,8 @@ class CachedUser(BasicUser, BaseModel):
     def get(cls, username: str) -> "CachedUser":
         if username in _cached_users:
             return _cached_users[username]
-
-        uids = get_uid_table()
-        uid = uids.get(username)
+        
+        uid = UIDMap.get().uid_of(username)
         if uid is None:
             return _cached_users.setdefault(username, cls())
 
@@ -158,6 +157,6 @@ class CachedUser(BasicUser, BaseModel):
             CACHE_FOLDER / f"{fetched.id}.json", "w", encoding="utf-8"
         ) as file:
             file.write(self.model_dump_json(indent=2))
-
-        store_uid(fetched.username, fetched.id)
+        
+        UIDMap.get().add_entry(fetched.username, fetched.id)
         logger.info("cached the result")

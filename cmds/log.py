@@ -1,6 +1,6 @@
 from argparse import ArgumentParser, FileType, Namespace
 from sys import stdout
-from .utils.login import get_credentials, login
+from .utils.bots import Bot
 from .utils.filters import date_filter, list_filter, change_filter
 from .utils.parsers import date_parser
 from .utils.renderers import ChangelogRenderer
@@ -11,14 +11,14 @@ from .utils.constants import LISTS, CHANGES
 
 
 def run(args: Namespace) -> None:
+    bot = Bot.get(args.name, args.password, args.tfa_seed)   
     if not args.target:
-        args.name, args.password = get_credentials(args.name, args.password)
-        args.target = args.name
+        args.target = bot.username
 
     cached = CachedUser.get(args.target)
 
     if args.sync:
-        client = login(args.name, args.password)
+        client = bot.login()
         fetched = FetchedUser.fetch(client, args.target, args.chunk_size)
         cached.dump_update(fetched)
     elif not cached:

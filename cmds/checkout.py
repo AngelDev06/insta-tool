@@ -1,7 +1,7 @@
 from argparse import ArgumentParser, FileType, Namespace
 from sys import stdout
 from .utils.parsers import date_parser
-from .utils.login import get_credentials
+from .utils.bots import Bot
 from .utils.filters import list_filter
 from .utils.streams import ColoredOutput
 from .utils.renderers import HistoryPointRenderer
@@ -11,8 +11,8 @@ from .utils.constants import LISTS
 
 def run(args: Namespace) -> None:
     if not args.target:
-        args.name, args.password = get_credentials(args.name, args.password)
-        args.target = args.name
+        bot = Bot.get(args.name, args.password, args.tfa_seed)
+        args.target = bot.username
 
     cached = CachedUser.get(args.target)
     if not cached:

@@ -1,7 +1,7 @@
 from typing import TypeAlias, Literal
 from pathlib import Path
 
-CONFIG_PATH = Path("config")
+CONFIG_FOLDER = Path("config")
 CACHE_FOLDER = Path("user info")
 SESSIONS_FOLDER = Path("sessions")
 LISTS = ("followers", "followings")

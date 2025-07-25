@@ -2,11 +2,12 @@ from sys import stdout
 from argparse import ArgumentParser, Namespace, FileType
 from datetime import datetime
 from . import checkout
-from .utils.login import get_credentials, login
+from .utils.bots import Bot
 from .utils.renderers import HistoryPointRenderer
 from .utils.streams import ColoredOutput
 from .utils.constants import LISTS
 from .utils.models.fetched_user import FetchedUser
+from .utils.models.cached_user import CachedUser
 
 
 def run(args: Namespace):
@@ -22,11 +23,12 @@ def run(args: Namespace):
             )
         )
         return
+    bot = Bot.get(args.name, args.password, args.tfa_seed)
     if not args.target:
-        args.name, args.password = get_credentials(args.name, args.password)
-        args.target = args.name
-    client = login(args.name, args.password)
+        args.target = bot.username
+    client = bot.login()
     state = FetchedUser.fetch(client, args.target, args.chunk_size)
+    CachedUser.get(args.target).dump_update(state)
     renderer = HistoryPointRenderer(
         out=ColoredOutput(args.out, "green"),
         history_point=datetime.now().date(),

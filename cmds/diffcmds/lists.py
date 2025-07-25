@@ -3,18 +3,18 @@ from sys import stdout
 from datetime import datetime
 from ..utils.parsers import date_parser
 from ..utils.streams import ColoredOutput
-from ..utils.login import get_credentials, login
+from ..utils.bots import Bot
 from ..utils.renderers import ListsDiffRenderer
 from ..utils.models.cached_user import CachedUser
 from ..utils.models.fetched_user import FetchedUser
 
 
 def run(args: Namespace):
+    bot = Bot.get(args.name, args.password, args.tfa_seed)
     if not args.target:
-        args.name, args.password = get_credentials(args.name, args.password)
-        args.target = args.name
+        args.target = bot.username
 
-    cached = CachedUser.get(args.target)  
+    cached = CachedUser.get(args.target)
     renderer = ListsDiffRenderer(
         out=ColoredOutput(args.out, "green"),
         at=args.date,
@@ -24,7 +24,7 @@ def run(args: Namespace):
     if args.date is not None:
         state = cached.checkout(args.date)
     else:
-        client = login(args.name, args.password)
+        client = bot.login()
         state = FetchedUser.fetch(client, args.target, args.chunk_size)
         cached.dump_update(state)
     

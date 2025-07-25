@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 
-from cmds import diff, login, log, checkout, compare, state
+from cmds import diff, login, log, checkout, compare, state, listbots
 from cmds.utils.tool_logger import setup as setup_logger
 
 
@@ -17,6 +17,12 @@ def main():
         "--password",
         "--pass",
         help="The password of the account to login",
+    )
+    parser.add_argument(
+        "-2fa",
+        "--2fa-seed",
+        dest="tfa_seed",
+        help="The 2fa seed to generate codes from (if required)",
     )
     parser.add_argument(
         "-v",
@@ -68,6 +74,11 @@ def main():
             help="Provides comparison information between two user records "
             "(this only operates on cache, i.e. it does not dynamically fetch information)"
             "(i.e. mutual followers/followings or differences)",
+        )
+    )
+    listbots.setup_parser(
+        subparsers.add_parser(
+            "listbots", help="List all of the currently configured bots"
         )
     )
 

@@ -1,7 +1,7 @@
 from argparse import ArgumentParser, FileType, Namespace
 from sys import stdout
 from ..utils.parsers import date_parser
-from ..utils.login import get_credentials, login
+from ..utils.bots import Bot
 from ..utils.streams import ColoredOutput
 from ..utils.filters import list_filter, change_filter
 from ..utils.renderers import RecordsDiffRenderer
@@ -11,9 +11,9 @@ from ..utils.constants import LISTS, CHANGES
 
 
 def run(args: Namespace) -> None:
+    bot = Bot.get(args.name, args.password, args.tfa_seed)
     if not args.target:
-        args.name, args.password = get_credentials(args.name, args.password)
-        args.target = args.name
+        args.target = bot.username
 
     cached = CachedUser.get(args.target)
     renderer = RecordsDiffRenderer(
@@ -27,7 +27,7 @@ def run(args: Namespace) -> None:
     )
 
     if args.date2 is None:
-        client = login(args.name, args.password)
+        client = bot.login()
         record2 = FetchedUser.fetch(client, args.target, args.chunk_size)
 
         if args.date1 is None:
