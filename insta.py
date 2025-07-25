@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 
-from cmds import diff, login, log, checkout, compare
+from cmds import diff, login, log, checkout, compare, state
 from cmds.utils.tool_logger import setup as setup_logger
 
 
@@ -53,6 +53,13 @@ def main():
             "checkout",
             help="Reconstruct history (i.e. followers/followings list) of a user "
             "at a specific point in time based on the changelog available",
+        )
+    )
+    state.setup_parser(
+        subparsers.add_parser(
+            "state",
+            help="Effectively a checkout to the currently cached state of "
+            "followers/followings or a dynamically fetched one",
         )
     )
     compare.setup_parser(

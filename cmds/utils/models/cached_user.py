@@ -5,7 +5,7 @@ from typing import Protocol, Optional, Iterable, Self
 from pydantic import BaseModel, field_serializer, Field
 from .fetched_user import FetchedUser
 from .user import BasicUser
-from .update import BasicUpdate, BasicUserUpdate
+from .update import BasicUpdate, BasicUserUpdate, Update
 from ..tool_logger import logger
 from ..constants import ListsType, LISTS, CHANGES, CACHE_FOLDER
 from ..uids import get_uid_table, store_uid
@@ -128,12 +128,12 @@ class CachedUser(BasicUser, BaseModel):
             if callback is not None:
                 callback(
                     list_name,
-                    **{
-                        change_type: getattr(
-                            update, f"{change_type}_usernames"
-                        )
-                        for change_type in CHANGES
-                    },
+                    Update(
+                        **{
+                            change_type: getattr(update, change_type)
+                            for change_type in CHANGES
+                        }
+                    ),
                 )
 
         if fetched.follower_count != len(

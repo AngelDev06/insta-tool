@@ -1,0 +1,74 @@
+from sys import stdout
+from argparse import ArgumentParser, Namespace, FileType
+from datetime import datetime
+from . import checkout
+from .utils.login import get_credentials, login
+from .utils.renderers import HistoryPointRenderer
+from .utils.streams import ColoredOutput
+from .utils.constants import LISTS
+from .utils.models.fetched_user import FetchedUser
+
+
+def run(args: Namespace):
+    if not args.sync:
+        checkout.run(
+            Namespace(
+                date=datetime.now().date(),
+                target=args.target,
+                out=args.out,
+                list=None,
+                username=None,
+                summary=args.summary,
+            )
+        )
+        return
+    if not args.target:
+        args.name, args.password = get_credentials(args.name, args.password)
+        args.target = args.name
+    client = login(args.name, args.password)
+    state = FetchedUser.fetch(client, args.target, args.chunk_size)
+    renderer = HistoryPointRenderer(
+        out=ColoredOutput(args.out, "green"),
+        history_point=datetime.now().date(),
+        lists=LISTS,
+        state=state,
+        target=args.target,
+        username=None,
+        summary=args.summary,
+    )
+    renderer.render()
+
+
+def setup_parser(parser: ArgumentParser):
+    parser.add_argument(
+        "target",
+        nargs="?",
+        default="",
+        help="The username of the target account",
+    )
+    parser.add_argument(
+        "out",
+        nargs="?",
+        type=FileType("w", encoding="utf-8"),
+        default=stdout,
+        help="An optional file to output the result",
+    )
+    parser.add_argument(
+        "--summary",
+        action="store_true",
+        help="Display a shorter version (i.e. only "
+        "include the counts of followers/followings, not the full list)",
+    )
+    parser.add_argument(
+        "--sync",
+        action="store_true",
+        help="Whether to dynamically fetch the current state or use "
+        "the latest one in cache",
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=100,
+        help="Specifies the size of each chunk to request when fetching from the api",
+    )
+    parser.set_defaults(func=run)
