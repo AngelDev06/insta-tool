@@ -1,13 +1,13 @@
-from sys import stdout
-from argparse import ArgumentParser, Namespace, FileType
+from argparse import ArgumentParser, FileType, Namespace
 from datetime import datetime
+from sys import stdout
+
 from . import checkout
+from .models import cached, fetched
 from .utils.bots import Bot
+from .utils.constants import LISTS
 from .utils.renderers import HistoryPointRenderer
 from .utils.streams import ColoredOutput
-from .utils.constants import LISTS
-from .utils.models.fetched_user import FetchedUser
-from .utils.models.cached_user import CachedUser
 
 
 def run(args: Namespace):
@@ -27,8 +27,8 @@ def run(args: Namespace):
     if not args.target:
         args.target = bot.username
     client = bot.login()
-    state = FetchedUser.fetch(client, args.target, args.chunk_size)
-    CachedUser.get(args.target).dump_update(state)
+    state = fetched.User.fetch(client, args.target, args.chunk_size)
+    cached.User.get(args.target).dump_update(state)
     renderer = HistoryPointRenderer(
         out=ColoredOutput(args.out, "green"),
         history_point=datetime.now().date(),

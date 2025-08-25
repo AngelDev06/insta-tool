@@ -1,12 +1,14 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 from functools import wraps
 from random import uniform
 from time import sleep, time
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, Optional, Protocol, cast
+
+from .bots import Config
 from .constants import SESSIONS_FOLDER
 from .tool_logger import logger
-from .bots import Config
 
 if TYPE_CHECKING:
     from instagrapi import Client
@@ -24,16 +26,24 @@ def scrap(callback: ScrapCallback):
             ChallengeRequired,
             ClientJSONDecodeError,
             ClientUnauthorizedError,
+            LoginRequired,
         )
 
         result: dict[int, str] = {}
 
-        logger.debug(
-            "scrapping a total of %d users in chunks of size %d from target with id %s",
-            self.user_count,
-            self.chunk_size,
-            self.user_id,
-        )
+        if self.user_count is not None:
+            logger.debug(
+                "scrapping a total of %d users in chunks of size %d from target with id %s",
+                self.user_count,
+                self.chunk_size,
+                self.target_id,
+            )
+        else:
+            logger.debug(
+                "scrapping users in chunks of size %d from target with id %s",
+                self.chunk_size,
+                self.target_id,
+            )
 
         def retry() -> bool:
             start = time()
@@ -69,7 +79,7 @@ def scrap(callback: ScrapCallback):
         while True:
             try:
                 user_list, cursor = callback(self)
-            except ClientUnauthorizedError:
+            except (ClientUnauthorizedError, LoginRequired):
                 if not retry():
                     break
                 continue
@@ -110,19 +120,25 @@ def scrap(callback: ScrapCallback):
 @dataclass
 class Scrapper:
     client: Client
-    user_id: str
-    user_count: int
-    chunk_size: int
+    target_id: str
+    user_count: Optional[int] = None
+    chunk_size: int = 100
     cursor: str = ""
 
     @scrap
     def fetch_followers(self):
         return self.client.user_followers_gql_chunk(
-            self.user_id, self.chunk_size, self.cursor
+            self.target_id, self.chunk_size, self.cursor
         )
 
     @scrap
     def fetch_followings(self):
         return self.client.user_following_gql_chunk(
-            self.user_id, self.chunk_size, self.cursor
+            self.target_id, self.chunk_size, self.cursor
+        )
+
+    @scrap
+    def fetch_story_viewers(self):
+        return self.client.story_viewers_chunk(
+            int(self.target_id), self.chunk_size, self.cursor
         )

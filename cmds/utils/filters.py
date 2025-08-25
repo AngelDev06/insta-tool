@@ -1,13 +1,17 @@
 from argparse import Namespace
-from typing import Iterable
-from .models.cached_user import CachedUser, CachedChangelogEntry
-from .constants import LISTS, ListsType, CHANGES, ChangesType
+from datetime import datetime
+from typing import Iterable, Protocol
+
+from .constants import CHANGES, LISTS, ChangesType, ListsType
 
 
-def date_filter(
-    args: Namespace, cached: CachedUser
-) -> Iterable[CachedChangelogEntry]:
-    iterable = reversed(cached.changelog)
+class WithDateSpecification(Protocol):
+    timestamp: datetime
+
+
+def date_filter[T: WithDateSpecification](
+    args: Namespace, iterable: Iterable[T]
+) -> Iterable[T]:
     if args.from_date is not None and args.to_date is not None:
         return (
             entry
@@ -15,17 +19,9 @@ def date_filter(
             if args.from_date <= entry.timestamp.date() <= args.to_date
         )
     if args.from_date is not None:
-        return (
-            entry
-            for entry in iterable
-            if entry.timestamp.date() >= args.from_date
-        )
+        return (entry for entry in iterable if entry.timestamp.date() >= args.from_date)
     if args.to_date is not None:
-        return (
-            entry
-            for entry in iterable
-            if entry.timestamp.date() <= args.to_date
-        )
+        return (entry for entry in iterable if entry.timestamp.date() <= args.to_date)
     return iterable
 
 

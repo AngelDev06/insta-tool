@@ -1,18 +1,17 @@
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Iterable, Optional, Literal, Collection, Union
-from .streams import ColoredOutput
-from .models.user import BasicUser
-from .models.cached_user import CachedChangelogEntry
-from .models.update import BasicUserUpdate, BasicUpdate
-from .models.diff import UserDiff, Diff
+from typing import Collection, Iterable, Literal, Optional, Union
+
+from ..models import cached, mixins
+from ..models.diff import Diff, UserDiff
 from .constants import (
-    DATE_OUTPUT_FORMAT,
     CHANGES_ATTRS,
-    ListsType,
+    DATE_OUTPUT_FORMAT,
     ChangesType,
     DiffsType,
+    ListsType,
 )
+from .streams import ColoredOutput
 
 USER_COMPARISON_TEXT_TABLE = {
     "mutuals": "mutuals",
@@ -39,15 +38,9 @@ class ListsDiffRenderer(BasicListRenderer):
 
     def render(self, userset: frozenset[str]):
         comparison_txt = (
-            "followings - followers"
-            if not self.reverse
-            else "followers - followings"
+            "followings - followers" if not self.reverse else "followers - followings"
         )
-        date_txt = (
-            f" - {self.at.strftime('%d/%m/%Y')}"
-            if self.at is not None
-            else ":"
-        )
+        date_txt = f" - {self.at.strftime('%d/%m/%Y')}" if self.at is not None else ":"
         self.out.write(f"Diff ({comparison_txt}){date_txt}\n")
         super().render(userset)
 
@@ -56,7 +49,7 @@ class ListsDiffRenderer(BasicListRenderer):
 class HistoryPointRenderer(BasicListRenderer):
     history_point: date
     lists: Iterable[ListsType]
-    state: BasicUser
+    state: mixins.User
     target: str
     username: Optional[str]
     summary: bool
@@ -67,9 +60,7 @@ class HistoryPointRenderer(BasicListRenderer):
         additional_text: list[str] = []
 
         for list_name in self.lists:
-            userset: frozenset[str] = getattr(
-                self.state, f"{list_name}_usernames"
-            )
+            userset: frozenset[str] = getattr(self.state, f"{list_name}_usernames")
             if self.username is not None:
                 if self.username in userset:
                     additional_text.append(f"a {list_name[:-1]}")
@@ -99,7 +90,7 @@ class DiffRenderer:
     username: Optional[str]
     detailed: bool
 
-    def render(self, user_update: Union[BasicUserUpdate, UserDiff]) -> None:
+    def render(self, user_update: Union[mixins.UserUpdate, UserDiff]) -> None:
         """Renders updates that were performed in a user list between two points in time
         (e.g. added/removed/renamed users)
 
@@ -115,7 +106,7 @@ class DiffRenderer:
             block_renderer(list_name, getattr(user_update, list_name))
 
     def render_block(
-        self, list_name: ListsType, update: Union[BasicUpdate, Diff]
+        self, list_name: ListsType, update: Union[mixins.Update, Diff]
     ) -> None:
         if list_name not in self.lists:
             return
@@ -125,9 +116,7 @@ class DiffRenderer:
         self.out.write(f"{list_name.capitalize()}:\n")
 
         for change_type in self.changes:
-            usernames: frozenset[str] = getattr(
-                update, f"{change_type}_usernames"
-            )
+            usernames: frozenset[str] = getattr(update, f"{change_type}_usernames")
             if not usernames:
                 continue
             self.render_change_header(change_type, usernames)
@@ -137,7 +126,7 @@ class DiffRenderer:
             self.render_username_list(change_type, usernames)
 
     def render_block_with_username_filter(
-        self, list_name: ListsType, update: Union[BasicUpdate, Diff]
+        self, list_name: ListsType, update: Union[mixins.Update, Diff]
     ):
         if list_name not in self.lists:
             return
@@ -146,9 +135,7 @@ class DiffRenderer:
 
         self.out.write(f"{list_name.capitalize()}:\n")
         for change_type in self.changes:
-            if not getattr(update, f"has_username_on_{change_type}")(
-                self.username
-            ):
+            if not getattr(update, f"has_username_on_{change_type}")(self.username):
                 continue
             self.render_username(change_type)
 
@@ -190,7 +177,7 @@ class RecordsDiffRenderer(DiffRenderer):
     from_date: Optional[date]
     to_date: Optional[date]
 
-    def render(self, user_update: BasicUserUpdate) -> None:  # type: ignore[override]
+    def render(self, user_update: mixins.UserUpdate) -> None:  # type: ignore[override]
         self.render_header()
         super().render(user_update)
 
@@ -206,7 +193,7 @@ class RecordsDiffRenderer(DiffRenderer):
 @dataclass
 class ChangelogRenderer(DiffRenderer):
     target: str
-    changelog: Iterable[CachedChangelogEntry]
+    changelog: Iterable[cached.ChangelogEntry]
     all: bool
 
     def render(self) -> None:  # type: ignore[override]
@@ -230,17 +217,15 @@ class ChangelogRenderer(DiffRenderer):
             super().render(log)
             self.out.write("\n")
 
-    def render_log_header(self, log: CachedChangelogEntry) -> None:
-        self.out.write(
-            f"Changelog - {log.timestamp.strftime(DATE_OUTPUT_FORMAT)}\n"
-        )
+    def render_log_header(self, log: cached.ChangelogEntry) -> None:
+        self.out.write(f"Changelog - {log.timestamp.strftime(DATE_OUTPUT_FORMAT)}\n")
 
 
 @dataclass(frozen=True)
 class UsersDiffRendererData:
     name: str
     date: Optional[date]
-    data: BasicUser
+    data: mixins.User
 
     def __str__(self) -> str:
         return (
@@ -252,9 +237,9 @@ class UsersDiffRendererData:
 
 @dataclass
 class UsersDiffRenderer(DiffRenderer):
-    changes: Iterable[DiffsType] = field(init=False)
+    changes: Iterable[DiffsType] = field(init=False)  # type: ignore[override]
     username: Optional[str] = field(init=False)
-    diff_attrs: dict[DiffsType, str] = field(init=False)
+    diff_attrs: dict[DiffsType, str] = field(init=False)  # type: ignore[override]
     user1: UsersDiffRendererData
     user2: UsersDiffRendererData
     comparison_type: Literal["mutuals", "diff", "both"]
@@ -279,12 +264,10 @@ class UsersDiffRenderer(DiffRenderer):
         )
         self.out.write(f"Between: {self.user1} and {self.user2}\n")
         super().render(
-            self.user1.data.diffs_from(
-                self.user2.data, self.lists, self.changes
-            )
+            self.user1.data.diffs_from(self.user2.data, self.lists, self.changes)
         )
 
-    def render_change_header( # type: ignore[override]
+    def render_change_header(  # type: ignore[override]
         self, change_type: DiffsType, userset: Collection[str]
     ):
         self.out.attrs = ("bold",)
@@ -294,7 +277,7 @@ class UsersDiffRenderer(DiffRenderer):
         self.out.write("\n")
         self.out.attrs = ("bold", "underline")
 
-    def render_username_list( # type: ignore[override]
+    def render_username_list(  # type: ignore[override]
         self, change_type: DiffsType, userset: Collection[str]
     ):
         self.out.color = "green"

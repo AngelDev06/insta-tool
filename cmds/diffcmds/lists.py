@@ -1,12 +1,13 @@
 from argparse import ArgumentParser, FileType, Namespace
-from sys import stdout
 from datetime import datetime
-from ..utils.parsers import date_parser
-from ..utils.streams import ColoredOutput
+from sys import stdout
+from typing import Union
+
+from ..models import cached, fetched
 from ..utils.bots import Bot
+from ..utils.parsers import date_parser
 from ..utils.renderers import ListsDiffRenderer
-from ..utils.models.cached_user import CachedUser
-from ..utils.models.fetched_user import FetchedUser
+from ..utils.streams import ColoredOutput
 
 
 def run(args: Namespace):
@@ -14,20 +15,21 @@ def run(args: Namespace):
     if not args.target:
         args.target = bot.username
 
-    cached = CachedUser.get(args.target)
+    cached_user = cached.User.get(args.target)
     renderer = ListsDiffRenderer(
         out=ColoredOutput(args.out, "green"),
         at=args.date,
         reverse=args.reverse,
     )
 
+    state: Union[cached.User, fetched.User]
     if args.date is not None:
-        state = cached.checkout(args.date)
+        state = cached_user.checkout(args.date)
     else:
         client = bot.login()
-        state = FetchedUser.fetch(client, args.target, args.chunk_size)
-        cached.dump_update(state)
-    
+        state = fetched.User.fetch(client, args.target, args.chunk_size)
+        cached_user.dump_update(state)
+
     renderer.render(state.diff(args.reverse))
 
 

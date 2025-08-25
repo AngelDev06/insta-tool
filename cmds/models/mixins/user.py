@@ -1,17 +1,18 @@
-from typing import Self, Iterable, Callable
-from .update import UserUpdate, Update
-from .diff import UserDiff, Diff
-from ..constants import (
-    LISTS,
-    ListsType,
+from typing import Callable, Iterable, Self
+
+from ...utils.constants import (
     CHANGES,
-    ChangesType,
     DIFFS,
+    LISTS,
+    ChangesType,
     DiffsType,
+    ListsType,
 )
+from ..diff import Diff, UserDiff
+from ..update import Update, UserUpdate
 
 
-class BasicUser:
+class User:
     followers: dict[int, str]
     followings: dict[int, str]
 
@@ -35,23 +36,17 @@ class BasicUser:
         current_list: dict[int, str] = getattr(self, list_name)
         other_list: dict[int, str] = getattr(other, list_name)
         return {
-            uid: current_list[uid]
-            for uid in current_list.keys() - other_list.keys()
+            uid: current_list[uid] for uid in current_list.keys() - other_list.keys()
         }
 
-    def removed_from(
-        self, other: Self, list_name: ListsType
-    ) -> dict[int, str]:
+    def removed_from(self, other: Self, list_name: ListsType) -> dict[int, str]:
         return other.added_from(self, list_name)
 
-    def mutuals_from(
-        self, other: Self, list_name: ListsType
-    ) -> dict[int, str]:
+    def mutuals_from(self, other: Self, list_name: ListsType) -> dict[int, str]:
         current_list: dict[int, str] = getattr(self, list_name)
         other_list: dict[int, str] = getattr(other, list_name)
         return {
-            uid: current_list[uid]
-            for uid in current_list.keys() & other_list.keys()
+            uid: current_list[uid] for uid in current_list.keys() & other_list.keys()
         }
 
     def updates_from(
@@ -80,9 +75,7 @@ class BasicUser:
         lists: Iterable[ListsType] = LISTS,
         diffs: Iterable[DiffsType] = DIFFS,
     ):
-        method_table: dict[
-            DiffsType, Callable[[Self, ListsType], dict[int, str]]
-        ] = {
+        method_table: dict[DiffsType, Callable[[Self, ListsType], dict[int, str]]] = {
             "user1": self.added_from,
             "user2": self.removed_from,
             "mutuals": self.mutuals_from,

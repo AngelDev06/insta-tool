@@ -1,13 +1,13 @@
 from argparse import ArgumentParser, FileType, Namespace
 from sys import stdout
-from ..utils.parsers import date_parser
+
+from ..models import cached, fetched
 from ..utils.bots import Bot
-from ..utils.streams import ColoredOutput
-from ..utils.filters import list_filter, change_filter
+from ..utils.constants import CHANGES, LISTS
+from ..utils.filters import change_filter, list_filter
+from ..utils.parsers import date_parser
 from ..utils.renderers import RecordsDiffRenderer
-from ..utils.models.cached_user import CachedUser
-from ..utils.models.fetched_user import FetchedUser
-from ..utils.constants import LISTS, CHANGES
+from ..utils.streams import ColoredOutput
 
 
 def run(args: Namespace) -> None:
@@ -15,7 +15,7 @@ def run(args: Namespace) -> None:
     if not args.target:
         args.target = bot.username
 
-    cached = CachedUser.get(args.target)
+    cached_user = cached.User.get(args.target)
     renderer = RecordsDiffRenderer(
         out=ColoredOutput(args.out, "green"),
         lists=list_filter(args),
@@ -28,19 +28,19 @@ def run(args: Namespace) -> None:
 
     if args.date2 is None:
         client = bot.login()
-        record2 = FetchedUser.fetch(client, args.target, args.chunk_size)
+        record2 = fetched.User.fetch(client, args.target, args.chunk_size)
 
         if args.date1 is None:
-            cached.dump_update(record2, renderer.render_block)
+            cached_user.dump_update(record2, renderer.render_block)
             return
-        cached.dump_update(record2)
+        cached_user.dump_update(record2)
     else:
-        record2 = cached.checkout(args.date2, renderer.lists)
+        record2 = cached_user.checkout(args.date2, renderer.lists)
 
     record1 = (
-        cached
+        cached_user
         if args.date1 is None
-        else cached.checkout(args.date1, renderer.lists)
+        else cached_user.checkout(args.date1, renderer.lists)
     )
 
     renderer.render(
