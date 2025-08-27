@@ -28,7 +28,18 @@ def run(args: Namespace):
         fetched_content = fetched.Stories.fetch(client, args.name, args.chunk_size)
         records.dump_update(fetched_content)
 
-    renderer.render(date_filter(args, reversed(list(records.stories.values()))))
+    renderer.render(
+        reversed(
+            list(
+                date_filter(
+                    args.from_date,
+                    args.to_date,
+                    records.stories.items(),
+                    lambda entry: entry[1].timestamp.date(),
+                )
+            )
+        )
+    )
 
 
 def setup_parser(parser: ArgumentParser):

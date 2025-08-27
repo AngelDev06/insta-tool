@@ -1,27 +1,24 @@
 from argparse import Namespace
-from datetime import datetime
-from typing import Iterable, Protocol
+from datetime import date, datetime
+from typing import Callable, Iterable, Optional, Protocol
 
 from .constants import CHANGES, LISTS, ChangesType, ListsType
 
 
-class WithDateSpecification(Protocol):
-    timestamp: datetime
-
-
-def date_filter[T: WithDateSpecification](
-    args: Namespace, iterable: Iterable[T]
+def date_filter[T](
+    from_date: Optional[date],
+    to_date: Optional[date],
+    iterable: Iterable[T],
+    date_access: Callable[[T], date] = lambda entry: entry.timestamp.date(),
 ) -> Iterable[T]:
-    if args.from_date is not None and args.to_date is not None:
+    if from_date is not None and to_date is not None:
         return (
-            entry
-            for entry in iterable
-            if args.from_date <= entry.timestamp.date() <= args.to_date
+            entry for entry in iterable if from_date <= date_access(entry) <= to_date
         )
-    if args.from_date is not None:
-        return (entry for entry in iterable if entry.timestamp.date() >= args.from_date)
-    if args.to_date is not None:
-        return (entry for entry in iterable if entry.timestamp.date() <= args.to_date)
+    if from_date is not None:
+        return (entry for entry in iterable if date_access(entry) >= from_date)
+    if to_date is not None:
+        return (entry for entry in iterable if date_access(entry) <= to_date)
     return iterable
 
 

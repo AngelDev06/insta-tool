@@ -32,7 +32,9 @@ def run(args: Namespace) -> None:
         username=args.username,
         detailed=args.detailed,
         target=args.target,
-        changelog=date_filter(args, reversed(cached_user.changelog)),
+        changelog=date_filter(
+            args.from_date, args.to_date, reversed(cached_user.changelog)
+        ),
         all=args.all,
     )
     renderer.render()

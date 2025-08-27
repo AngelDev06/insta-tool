@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 
-from .storycmds import lookup
+from .storycmds import listcmd, lookup
 
 
 def setup_parser(parser: ArgumentParser):
@@ -17,6 +17,11 @@ def setup_parser(parser: ArgumentParser):
         operations.add_parser(
             "lookup",
             help="Lookup which of the recorded (or fetched) stories a specific user appear to have watched",
+        )
+    )
+    listcmd.setup_parser(
+        operations.add_parser(
+            "list", help="List the viewers of a story specified by id"
         )
     )
     parser.set_defaults(func=lambda args: args.subfunc(args))

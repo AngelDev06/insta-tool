@@ -1,4 +1,4 @@
-from typing import Self
+from typing import Iterable, Self
 
 from ..viewer import Viewer
 
@@ -22,5 +22,5 @@ class Story:
         }
 
     @property
-    def viewers_usernames(self) -> frozenset[str]:
-        return frozenset(viewer.name for viewer in self.viewers.values())
+    def viewers_usernames(self) -> Iterable[str]:
+        return (viewer.name for viewer in self.viewers.values())

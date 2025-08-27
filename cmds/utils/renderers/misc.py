@@ -18,7 +18,7 @@ class ViewerHistoryRenderer:
     all: bool
     deep: bool
 
-    def render(self, stories: Iterable[cached.Story]):
+    def render(self, stories: Iterable[tuple[int, cached.Story]]):
         lookup_success: bool = False
         self.out.set_attrs(color="green", attrs=("bold", "underline"))
         self.render_header()
@@ -41,10 +41,10 @@ class ViewerHistoryRenderer:
                         return viewer
                 return None
 
-        for story in stories:
+        for sid, story in stories:
             viewer = lookup(story)
             if viewer is not None or self.all:
-                self.render_entry(story, viewer)
+                self.render_entry(sid, story, viewer)
                 lookup_success = True
 
         if not lookup_success:
@@ -57,8 +57,12 @@ class ViewerHistoryRenderer:
         )
         self.out.write("\n")
 
-    def render_entry(self, story: cached.Story, viewer: Optional[Viewer]) -> None:
-        self.out.write(f"Story - {story.timestamp.strftime(DATE_OUTPUT_FORMAT)}\n")
+    def render_entry(
+        self, sid: int, story: cached.Story, viewer: Optional[Viewer]
+    ) -> None:
+        self.out.write(
+            f"Story ({sid}) - {story.timestamp.strftime(DATE_OUTPUT_FORMAT)}\n"
+        )
         if viewer is None:
             self.out.set_attrs(color="red")
             self.out.cwrite("No Records")
@@ -82,8 +86,8 @@ class ViewerHistoryRenderer:
             self.out.write(f"{', '.join(date_txt)}\n")
         self.out.write("\n")
 
-    def lookup_uid(self, stories: Iterable[cached.Story]) -> Optional[int]:
-        for story in stories:
+    def lookup_uid(self, stories: Iterable[tuple[int, cached.Story]]) -> Optional[int]:
+        for _, story in stories:
             for uid, viewer in story.viewers.items():
                 if viewer.name == self.username:
                     return uid

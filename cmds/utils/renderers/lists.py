@@ -2,8 +2,8 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Iterable, Optional
 
-from ...models import mixins
-from ..constants import ListsType
+from ...models import cached, mixins
+from ..constants import DATE_OUTPUT_FORMAT, ListsType
 from ..streams import ColoredOutput
 
 
@@ -11,7 +11,7 @@ from ..streams import ColoredOutput
 class BasicListRenderer:
     out: ColoredOutput
 
-    def render(self, userset: frozenset[str]):
+    def render(self, userset: Iterable[str]):
         for username in userset:
             self.out.write("  ")
             self.out.cwrite(username)
@@ -23,7 +23,7 @@ class ListsDiffRenderer(BasicListRenderer):
     at: Optional[date]
     reverse: bool
 
-    def render(self, userset: frozenset[str]):
+    def render(self, userset: Iterable[str]):
         comparison_txt = (
             "followings - followers" if not self.reverse else "followers - followings"
         )
@@ -41,7 +41,7 @@ class HistoryPointRenderer(BasicListRenderer):
     username: Optional[str]
     summary: bool
 
-    def render(self):  # type: ignore[override]
+    def render(self) -> None:  # type: ignore[override]
         history_point_txt = self.history_point.strftime("%d/%m/%Y")
         self.out.write(f"History for {self.target} at {history_point_txt}\n")
         additional_text: list[str] = []
@@ -67,3 +67,34 @@ class HistoryPointRenderer(BasicListRenderer):
             self.out.write(
                 f"{self.username} was {' and '.join(additional_text)} of {self.target}\n"
             )
+
+
+@dataclass
+class StoryViewersRenderer(BasicListRenderer):
+    summary: bool
+
+    def render(self, sid: int, story: Optional[cached.Story]) -> None:  # type: ignore[override]
+        self.out.set_attrs(color="green", attrs=("bold", "underline"))
+        if story is None:
+            self.out.set_attrs(color="red")
+            self.out.cwrite("No story was found with given id in the records")
+            self.out.write("\n")
+            return
+
+        self.out.write("Story Viewers List\n")
+        self.out.write(
+            f"ID: {sid}, DATE: {story.timestamp.strftime(DATE_OUTPUT_FORMAT)}\n"
+        )
+
+        if not story.viewers:
+            self.out.set_attrs(color="red")
+            self.out.cwrite("No Viewers")
+            self.out.write("\n")
+            return
+        self.out.write("Viewers:")
+
+        if self.summary:
+            self.out.write(f" {len(story.viewers)}\n")
+            return
+        self.out.write("\n")
+        super().render(story.viewers_usernames)
