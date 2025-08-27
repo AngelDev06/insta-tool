@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 
-from cmds import diff, login, log, checkout, compare, state, listbots
+from cmds import checkout, compare, diff, listbots, log, login, state, story
 from cmds.utils.tool_logger import setup as setup_logger
 
 
@@ -75,6 +75,9 @@ def main():
             "(this only operates on cache, i.e. it does not dynamically fetch information)"
             "(i.e. mutual followers/followings or differences)",
         )
+    )
+    story.setup_parser(
+        subparsers.add_parser("story", help="Provides story viewers related operations")
     )
     listbots.setup_parser(
         subparsers.add_parser(

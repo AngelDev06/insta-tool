@@ -86,7 +86,7 @@ class User(mixins.User, mixins.Cached, BaseModel):
 
     def dump_update(
         self,
-        fetched: fetched.User,
+        fetched_user: fetched.User,
         callback: Optional[OutputUpdateCallback] = None,
     ) -> None:
         """Creates a new changelog entry by comparing the dynamically fetched state
@@ -94,7 +94,7 @@ class User(mixins.User, mixins.Cached, BaseModel):
         and will proceed to back it up in a file
 
         Args:
-            fetched (FetchedUser): The dynamically fetched state to use (should not be empty)
+            fetched_user (fetched.User): The dynamically fetched state to use (should not be empty)
             callback (Optional[OutputUpdateCallback]): An optional callback that will be called
                 (if provided) for every list providing it with the list name as well as the changes
                 as keyword arguments. Can be used for printing the result."""
@@ -102,9 +102,9 @@ class User(mixins.User, mixins.Cached, BaseModel):
 
         for list_name in LISTS:
             update: Update = getattr(entry, list_name)
-            update.added = fetched.added_from(self, list_name)  # type: ignore
-            update.removed = fetched.removed_from(self, list_name)  # type: ignore
-            update.renamed = fetched.renamed_from(self, list_name)  # type: ignore
+            update.added = fetched_user.added_from(self, list_name)  # type: ignore
+            update.removed = fetched_user.removed_from(self, list_name)  # type: ignore
+            update.renamed = fetched_user.renamed_from(self, list_name)  # type: ignore
 
             if callback is not None:
                 callback(
@@ -117,9 +117,9 @@ class User(mixins.User, mixins.Cached, BaseModel):
                     ),
                 )
 
-        if fetched.follower_count != len(
-            fetched.followers
-        ) or fetched.following_count != len(fetched.followings):
+        if fetched_user.follower_count != len(
+            fetched_user.followers
+        ) or fetched_user.following_count != len(fetched_user.followings):
             if (
                 input(
                     "not all the requested users were fetched, should the result be cached regardless? (Y/n) "
@@ -128,7 +128,7 @@ class User(mixins.User, mixins.Cached, BaseModel):
             ):
                 return
 
-        self.followers = fetched.followers
-        self.followings = fetched.followings
+        self.followers = fetched_user.followers
+        self.followings = fetched_user.followings
         self.changelog.append(entry)
-        self.dump(fetched.username, fetched.id)
+        self.dump(fetched_user.username, fetched_user.id)

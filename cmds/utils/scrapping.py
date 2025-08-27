@@ -104,7 +104,11 @@ def scrap(callback: ScrapCallback):
             logger.info(f"current user count: {len(result)}")
 
             if not cursor:
-                if len(result) != self.user_count and retry():
+                if (
+                    self.user_count is not None
+                    and len(result) != self.user_count
+                    and retry()
+                ):
                     continue
                 break
 

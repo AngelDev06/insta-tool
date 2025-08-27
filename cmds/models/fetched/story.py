@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -5,6 +7,7 @@ from typing import TYPE_CHECKING
 from ...utils.constants import DATE_OUTPUT_FORMAT
 from ...utils.scrapping import Scrapper
 from ...utils.tool_logger import logger
+from .. import mixins
 from ..viewer import Viewer
 
 if TYPE_CHECKING:
@@ -13,7 +16,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class Story:
+class Story(mixins.Story):
     """A single story entry (fetched online and ready to be cached). Unlike with state, multiple story entries can exist at a single point in time so a container of this instance is required"""
 
     taken_at: datetime
@@ -62,3 +65,6 @@ class Stories:
                 for story in stories
             },
         )
+
+    def __iter__(self):
+        return iter(self.stories.items())
