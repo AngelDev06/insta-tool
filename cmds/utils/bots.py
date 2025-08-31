@@ -1,11 +1,14 @@
 from __future__ import annotations
+
 import logging
-from pydantic import BaseModel, field_serializer, field_validator, Field
 from base64 import b64decode, b64encode
-from typing import Optional, cast, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, cast
+
+from pydantic import BaseModel, Field, field_serializer, field_validator
+
+from .constants import CONFIG_FOLDER, DEFAULT_CHUNK_SIZE, SESSIONS_FOLDER
 from .tool_logger import logger
 from .uids import UIDMap
-from .constants import CONFIG_FOLDER, SESSIONS_FOLDER
 
 if TYPE_CHECKING:
     from instagrapi import Client
@@ -68,9 +71,7 @@ class Bot(BaseModel):
         from instagrapi import Client
 
         client = Client()
-        Client.public_request_logger.addHandler(
-            logging.FileHandler("insta.log")
-        )
+        Client.public_request_logger.addHandler(logging.FileHandler("insta.log"))
 
         if not self.try_session_login(client):
             logger.debug("no session was found, attempting manual login...")
@@ -111,6 +112,7 @@ class Bot(BaseModel):
 class Config(BaseModel):
     current_uid: Optional[int] = None
     bots: dict[int, Bot] = Field(default_factory=dict)
+    chunk_size: int = DEFAULT_CHUNK_SIZE
 
     @classmethod
     def get(cls):
@@ -126,8 +128,7 @@ class Config(BaseModel):
         return _config
 
     def backup(self):
-        if not CONFIG_FOLDER.is_dir():
-            CONFIG_FOLDER.mkdir()
+        CONFIG_FOLDER.mkdir(exist_ok=True)
         config_file = CONFIG_FOLDER / "config.json"
         with open(config_file, "w", encoding="utf-8") as file:
             file.write(self.model_dump_json(indent=2))

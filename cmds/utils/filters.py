@@ -1,6 +1,6 @@
 from argparse import Namespace
-from datetime import date, datetime
-from typing import Callable, Iterable, Optional, Protocol
+from datetime import date
+from typing import Callable, Collection, Iterable, Optional
 
 from .constants import CHANGES, LISTS, ChangesType, ListsType
 
@@ -22,17 +22,17 @@ def date_filter[T](
     return iterable
 
 
-def list_filter(args: Namespace) -> Iterable[ListsType]:
-    if args.list is None:
+def list_filter(list_name: Optional[ListsType]) -> Collection[ListsType]:
+    if list_name is None:
         return LISTS
-    if args.list in LISTS:
-        return (args.list,)
+    if list_name in LISTS:
+        return (list_name,)
     raise RuntimeError("`list` argument is invalid")
 
 
-def change_filter(args: Namespace) -> Iterable[ChangesType]:
-    if args.change is None:
+def change_filter(change_type: Optional[ChangesType]) -> Collection[ChangesType]:
+    if change_type is None:
         return CHANGES
-    if args.change in CHANGES:
-        return (args.change,)
+    if change_type in CHANGES:
+        return (change_type,)
     raise RuntimeError("`change` argument is invalid")

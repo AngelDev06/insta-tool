@@ -90,10 +90,4 @@ def setup_parser(parser: ArgumentParser) -> None:
         action="store_true",
         help="Whether it should (in addition) create a new log by fetching current info",
     )
-    parser.add_argument(
-        "--chunk-size",
-        type=int,
-        default=100,
-        help="Only matters if --sync is specified and controls the size of each chunk to fetch while scrapping",
-    )
     parser.set_defaults(func=run)

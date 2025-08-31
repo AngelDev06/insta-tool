@@ -3,7 +3,6 @@ from sys import stdout
 
 from ..models import cached, fetched
 from ..utils.bots import Bot
-from ..utils.filters import date_filter
 from ..utils.parsers import date_parser
 from ..utils.renderers import ViewerHistoryRenderer
 from ..utils.streams import ColoredOutput
@@ -28,18 +27,7 @@ def run(args: Namespace):
         fetched_content = fetched.Stories.fetch(client, args.name, args.chunk_size)
         records.dump_update(fetched_content)
 
-    renderer.render(
-        reversed(
-            list(
-                date_filter(
-                    args.from_date,
-                    args.to_date,
-                    records.stories.items(),
-                    lambda entry: entry[1].timestamp.date(),
-                )
-            )
-        )
-    )
+    renderer.render(records.stories)
 
 
 def setup_parser(parser: ArgumentParser):
@@ -83,11 +71,5 @@ def setup_parser(parser: ArgumentParser):
         action="store_true",
         help="By default only cached entries are used, "
         "this makes it so it uses online ones as well",
-    )
-    parser.add_argument(
-        "--chunk-size",
-        type=int,
-        default=100,
-        help="In combination with `--sync` controls the size of each chunk of viewers to fetch",
     )
     parser.set_defaults(subfunc=run)

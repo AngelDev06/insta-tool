@@ -1,5 +1,6 @@
 from typing import Iterable, Self
 
+from ...utils.constants import DATE_OUTPUT_FORMAT
 from ..viewer import Viewer
 
 
@@ -23,4 +24,4 @@ class Story:
 
     @property
     def viewers_usernames(self) -> Iterable[str]:
-        return (viewer.name for viewer in self.viewers.values())
+        return (str(viewer) for viewer in self.viewers.values())

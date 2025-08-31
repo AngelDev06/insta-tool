@@ -2,26 +2,79 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import date, datetime
-from typing import ClassVar, Iterable, Optional, Protocol, Self
+from typing import ClassVar, Iterable, Optional, Protocol, Self, overload
 
 from pydantic import BaseModel, Field, field_serializer
 
-from ...utils.constants import CHANGES, LISTS, ListsType
+from ...utils.constants import CHANGES, LISTS, ChangesType, ListsType
 from .. import fetched, mixins
-from ..update import Update as UpdateContainer
+from ..update import (
+    RenamedUser,
+)
+from ..update import (
+    SingleUpdate as SingleUpdateData,
+)
+from ..update import (
+    Update as UpdateData,
+)
+from ..update import (
+    UserUpdate as UserUpdateData,
+)
 
 
 class OutputUpdateCallback(Protocol):
     def __call__(self, list_name: ListsType, update: mixins.Update) -> None: ...
 
 
-class Update(mixins.Update, BaseModel):
+class Update(BaseModel):
     added: dict[int, str] = Field(default_factory=dict)
     removed: dict[int, str] = Field(default_factory=dict)
     renamed: dict[int, tuple[str, str]] = Field(default_factory=dict)
 
+    def _packed_change(self, change: ChangesType):
+        if change == "renamed":
+            return {
+                uid: RenamedUser(old, new) for uid, (old, new) in self.renamed.items()
+            }
+        return getattr(self, change)
 
-class ChangelogEntry(mixins.UserUpdate, BaseModel):
+    def _lookup_in_renamed(self, username: str) -> SingleUpdateData:
+        for uid, (old, new) in self.renamed.items():
+            if username == old or username == new:
+                return SingleUpdateData(
+                    change="renamed", user_id=uid, username=RenamedUser(old, new)
+                )
+        return SingleUpdateData()
+
+    @overload
+    def pack_updates(
+        self, username: str, changes: Iterable[ChangesType]
+    ) -> SingleUpdateData: ...
+
+    @overload
+    def pack_updates(
+        self, username: None, changes: Iterable[ChangesType]
+    ) -> UpdateData: ...
+
+    def pack_updates(self, username=None, changes=CHANGES):
+        if username is None:
+            return UpdateData(
+                **{
+                    change_type: self._packed_change(change_type)
+                    for change_type in changes
+                }
+            )
+        for change in changes:
+            if change == "renamed":
+                return self._lookup_in_renamed(username)
+            change_dict: dict[int, str] = getattr(self, change)
+            for uid, name in change_dict.items():
+                if name == username:
+                    return SingleUpdateData(change=change, user_id=uid, username=name)
+        return SingleUpdateData()
+
+
+class ChangelogEntry(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
     followers: Update = Field(default_factory=Update)  # type: ignore[override]
     followings: Update = Field(default_factory=Update)  # type: ignore[override]
@@ -29,6 +82,19 @@ class ChangelogEntry(mixins.UserUpdate, BaseModel):
     @field_serializer("timestamp")
     def serialize_timestamp(self, timestamp: datetime, _info):
         return timestamp.timestamp()
+
+    def pack_updates(
+        self,
+        username: Optional[str] = None,
+        lists: Iterable[ListsType] = LISTS,
+        changes: Iterable[ChangesType] = CHANGES,
+    ) -> UserUpdateData:
+        return UserUpdateData(
+            **{
+                list_name: getattr(self, list_name).pack_updates(username, changes)
+                for list_name in lists
+            }
+        )
 
 
 class User(mixins.User, mixins.Cached, BaseModel):

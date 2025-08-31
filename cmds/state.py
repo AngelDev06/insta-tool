@@ -67,10 +67,4 @@ def setup_parser(parser: ArgumentParser):
         help="Whether to dynamically fetch the current state or use "
         "the latest one in cache",
     )
-    parser.add_argument(
-        "--chunk-size",
-        type=int,
-        default=100,
-        help="Specifies the size of each chunk to request when fetching from the api",
-    )
     parser.set_defaults(func=run)

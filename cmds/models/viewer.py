@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, field_serializer
 
+from ..utils.constants import DATE_OUTPUT_FORMAT
+
 
 class Viewer(BaseModel):
     """Instead of just the name we also keep track of when was the viewer first spotted in order to build a proper timeline.
@@ -13,3 +15,6 @@ class Viewer(BaseModel):
     @field_serializer("recorded_at")
     def serialize_recorded_at(self, recorded_at: datetime, _info):
         return recorded_at.timestamp()
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.recorded_at.strftime(DATE_OUTPUT_FORMAT)})"

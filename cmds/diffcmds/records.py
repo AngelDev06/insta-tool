@@ -44,7 +44,7 @@ def run(args: Namespace) -> None:
     )
 
     renderer.render(
-        record2.updates_from(record1, renderer.lists, renderer.changes)  # type: ignore
+        record2.updates_from(record1, args.username, args.lists, args.changes)
     )
 
 
@@ -91,13 +91,6 @@ def setup_parser(parser: ArgumentParser) -> None:
         "--summary",
         action="store_true",
         help="Display just the number of users added/removed, not the full list",
-    )
-    parser.add_argument(
-        "--chunk-size",
-        type=int,
-        default=100,
-        help="If no 'second-record' is specified, this controls "
-        "the size of each chunk to request from instagram",
     )
     parser.add_argument(
         "--out",

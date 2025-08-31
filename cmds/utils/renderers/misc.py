@@ -6,6 +6,7 @@ from typing import Iterable, Optional
 from ...models import cached
 from ...models.viewer import Viewer
 from ..constants import DATE_OUTPUT_FORMAT
+from ..filters import date_filter
 from ..streams import ColoredOutput
 
 
@@ -18,7 +19,7 @@ class ViewerHistoryRenderer:
     all: bool
     deep: bool
 
-    def render(self, stories: Iterable[tuple[int, cached.Story]]):
+    def render(self, stories: dict[int, cached.Story]):
         lookup_success: bool = False
         self.out.set_attrs(color="green", attrs=("bold", "underline"))
         self.render_header()
@@ -41,7 +42,16 @@ class ViewerHistoryRenderer:
                         return viewer
                 return None
 
-        for sid, story in stories:
+        for sid, story in reversed(
+            list(
+                date_filter(
+                    self.from_date,
+                    self.to_date,
+                    stories.items(),
+                    lambda item: item[1].timestamp.date(),
+                )
+            )
+        ):
             viewer = lookup(story)
             if viewer is not None or self.all:
                 self.render_entry(sid, story, viewer)

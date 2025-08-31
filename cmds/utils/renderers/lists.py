@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import date
-from typing import Iterable, Optional
+from typing import Collection, Iterable, Optional
 
 from ...models import cached, mixins
 from ..constants import DATE_OUTPUT_FORMAT, ListsType
@@ -36,27 +36,26 @@ class ListsDiffRenderer(BasicListRenderer):
 class HistoryPointRenderer(BasicListRenderer):
     history_point: date
     lists: Iterable[ListsType]
-    state: mixins.User
     target: str
     username: Optional[str]
     summary: bool
 
-    def render(self) -> None:  # type: ignore[override]
+    def render(self, state: mixins.User) -> None:  # type: ignore[override]
         history_point_txt = self.history_point.strftime("%d/%m/%Y")
         self.out.write(f"History for {self.target} at {history_point_txt}\n")
         additional_text: list[str] = []
 
         for list_name in self.lists:
-            userset: frozenset[str] = getattr(self.state, f"{list_name}_usernames")
+            usernames: Collection[str] = getattr(state, list_name).values()
             if self.username is not None:
-                if self.username in userset:
+                if self.username in usernames:
                     additional_text.append(f"a {list_name[:-1]}")
                 continue
             if self.summary:
-                self.out.write(f"{list_name.capitalize()}: {len(userset)}\n")
+                self.out.write(f"{list_name.capitalize()}: {len(usernames)}\n")
                 continue
-            self.out.write(f"{list_name.capitalize()} ({len(userset)}):\n")
-            super().render(userset)
+            self.out.write(f"{list_name.capitalize()} ({len(usernames)}):\n")
+            super().render(usernames)
 
         if self.username is not None:
             if not additional_text:

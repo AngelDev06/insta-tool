@@ -54,9 +54,7 @@ def setup_parser(parser: ArgumentParser) -> None:
         help="By default followings is compared against followers "
         "to determine who doesn't follow back, so this flag would reverse the check",
     )
-
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument(
+    parser.add_argument(
         "--cache",
         nargs="?",
         type=date_parser,
@@ -66,12 +64,4 @@ def setup_parser(parser: ArgumentParser) -> None:
         "an optional date (DD-MM-YYYY) that dictates the record to use or "
         "the latest one if not specified",
     )
-    group.add_argument(
-        "--chunk-size",
-        type=int,
-        default=100,
-        help="When fetching directly from instagram this dictates "
-        "the size of each chunk to request",
-    )
-
     parser.set_defaults(subfunc=run)

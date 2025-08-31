@@ -18,6 +18,13 @@ def get_comparison_type(args: Namespace):
 
 def run(args: Namespace):
     lists = list_filter(args)
+    renderer = UsersDiffRenderer(
+        out=ColoredOutput(args.out, "green"),
+        lists=args.lists,
+        username=args.username,
+        detailed=not args.summary,
+        comparison_type=get_comparison_type(args),
+    )
     cached1 = cached.User.get(args.user1)
     cached2 = cached.User.get(args.user2)
 
@@ -26,15 +33,6 @@ def run(args: Namespace):
     )
     user2 = (
         cached2.checkout(args.record2, lists) if args.record2 is not None else cached2
-    )
-
-    renderer = UsersDiffRenderer(
-        ColoredOutput(args.out, "green"),
-        lists=lists,
-        detailed=not args.summary,
-        user1=UsersDiffRendererData(name=args.user1, date=args.record1, data=user1),
-        user2=UsersDiffRendererData(name=args.user2, date=args.record2, data=user2),
-        comparison_type=get_comparison_type(args),
     )
     renderer.render()
 

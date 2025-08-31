@@ -1,6 +1,8 @@
 from argparse import ArgumentParser
 
 from cmds import checkout, compare, diff, listbots, log, login, state, story
+from cmds.utils.actions import StoreInConfig
+from cmds.utils.constants import DEFAULT_CHUNK_SIZE
 from cmds.utils.tool_logger import setup as setup_logger
 
 
@@ -23,6 +25,14 @@ def main():
         "--2fa-seed",
         dest="tfa_seed",
         help="The 2fa seed to generate codes from (if required)",
+    )
+    parser.add_argument(
+        "-ch",
+        "--chunk-size",
+        type=int,
+        action=StoreInConfig,
+        default=DEFAULT_CHUNK_SIZE,
+        help="When scrapping user lists from the api, this controls the size of each chunk to request",
     )
     parser.add_argument(
         "-v",

@@ -15,21 +15,20 @@ def run(args: Namespace) -> None:
         bot = Bot.get(args.name, args.password, args.tfa_seed)
         args.target = bot.username
 
-    cached_user = cached.User.get(args.target)
-    if not cached_user:
-        args.out.write("Can't reconstruct a point in history for an untracked user\n")
-        return
-    lists = list_filter(args)
     renderer = HistoryPointRenderer(
         out=ColoredOutput(args.out, "green"),
         history_point=args.date,
-        lists=lists,
-        state=cached_user.checkout(args.date, lists),
+        lists=list_filter(args.list),
         target=args.target,
         username=args.username,
         summary=args.summary,
     )
-    renderer.render()
+
+    cached_user = cached.User.get(args.target)
+    if not cached_user:
+        args.out.write("Can't reconstruct a point in history for an untracked user\n")
+        return
+    renderer.render(cached_user.checkout(args.date, renderer.lists))
 
 
 def setup_parser(parser: ArgumentParser) -> None:
