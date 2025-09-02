@@ -1,5 +1,5 @@
 from argparse import ArgumentParser, FileType, Namespace
-from datetime import datetime
+from datetime import date, timedelta
 from sys import stdout
 from typing import Union
 
@@ -58,10 +58,11 @@ def setup_parser(parser: ArgumentParser) -> None:
         "--cache",
         nargs="?",
         type=date_parser,
-        const=datetime.now().date(),
+        const=date.today() + timedelta(days=1),
         dest="date",
         help="Use a cached record instead of fetching lists online with "
-        "an optional date (DD-MM-YYYY) that dictates the record to use or "
-        "the latest one if not specified",
+        "an optional date (DD-MM-YYYY) that dictates the date of state to use "
+        "(similarly to `checkout` the state does not include any updates that "
+        "happened in that date)"
     )
     parser.set_defaults(subfunc=run)

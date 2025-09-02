@@ -4,10 +4,10 @@ from sys import stdout
 from .models import cached, fetched
 from .utils.bots import Bot
 from .utils.constants import CHANGES, LISTS
-from .utils.filters import change_filter, date_filter, list_filter
 from .utils.parsers import date_parser
 from .utils.renderers import ChangelogRenderer
 from .utils.streams import ColoredOutput
+from .utils.actions import UniqueChoices
 
 
 def run(args: Namespace) -> None:
@@ -24,20 +24,19 @@ def run(args: Namespace) -> None:
     elif not cached_user:
         args.out.write(f"No logs to display for '{args.target}'\n")
         return
-
+    
     renderer = ChangelogRenderer(
         out=ColoredOutput(args.out, "green"),
-        lists=list_filter(args),
-        changes=change_filter(args),
+        lists=args.lists,
+        changes=args.changes,
         username=args.username,
         detailed=args.detailed,
         target=args.target,
-        changelog=date_filter(
-            args.from_date, args.to_date, reversed(cached_user.changelog)
-        ),
+        from_date=args.from_date,
+        to_date=args.to_date,
         all=args.all,
     )
-    renderer.render()
+    renderer.render(cached_user.changelog)
 
 
 def setup_parser(parser: ArgumentParser) -> None:
@@ -60,17 +59,27 @@ def setup_parser(parser: ArgumentParser) -> None:
         action="store_true",
         help="Display detailed information (i.e. the entire list of followers/followings added/removed)",
     )
-    parser.add_argument("--from-date", type=date_parser, help="Start date (DD-MM-YYYY)")
-    parser.add_argument("--to-date", type=date_parser, help="End date (DD-MM-YYYY)")
     parser.add_argument(
-        "--list",
-        choices=LISTS,
-        help="Filter by list (only display followers or followings)",
+        "--from-date", type=date_parser, help="Start date (DD-MM-YYYY)"
     )
     parser.add_argument(
-        "--change",
+        "--to-date", type=date_parser, help="End date (DD-MM-YYYY)"
+    )
+    parser.add_argument(
+        "--lists",
+        nargs="+",
+        choices=LISTS,
+        action=UniqueChoices,
+        default=LISTS,
+        help="Filter by list",
+    )
+    parser.add_argument(
+        "--changes",
+        nargs="+",
         choices=CHANGES,
-        help="Only display 'added' or 'removed' users (applies to each list)",
+        action=UniqueChoices,
+        default=CHANGES,
+        help="The changes to include in the display (all of them by default)",
     )
     parser.add_argument(
         "--username",

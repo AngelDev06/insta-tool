@@ -18,5 +18,5 @@ def id_or_date(argument: str) -> Union[date, int]:
     try:
         return datetime.strptime(argument, "%d-%m-%Y").date()
     except ValueError:
-        raise ArgumentTypeError(f"'{argument}' is neither a proper date or an id")
+        raise ArgumentTypeError(f"'{argument}' is neither a proper date nor an id")
 

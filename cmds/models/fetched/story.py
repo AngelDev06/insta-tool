@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 class Story(mixins.Story):
     """A single story entry (fetched online and ready to be cached). Unlike with state, multiple story entries can exist at a single point in time so a container of this instance is required"""
 
-    taken_at: datetime
+    timestamp: datetime
     viewers: dict[int, Viewer]
 
     @classmethod
@@ -31,7 +31,7 @@ class Story(mixins.Story):
         viewers: dict[int, str] = scrapper.fetch_story_viewers()
         logger.info(f"fetched viewers, total count: {len(viewers)}")
         return cls(
-            taken_at=story.taken_at,
+            timestamp=story.taken_at,
             viewers={
                 key: Viewer.model_construct(name=value, recorded_at=datetime.now())
                 for key, value in viewers.items()
@@ -68,3 +68,6 @@ class Stories:
 
     def __iter__(self):
         return iter(self.stories.items())
+    
+    def __bool__(self) -> bool:
+        return bool(self.stories)

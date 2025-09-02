@@ -4,10 +4,10 @@ from sys import stdout
 from ..models import cached, fetched
 from ..utils.bots import Bot
 from ..utils.constants import CHANGES, LISTS
-from ..utils.filters import change_filter, list_filter
 from ..utils.parsers import date_parser
 from ..utils.renderers import RecordsDiffRenderer
 from ..utils.streams import ColoredOutput
+from ..utils.actions import UniqueChoices
 
 
 def run(args: Namespace) -> None:
@@ -18,8 +18,8 @@ def run(args: Namespace) -> None:
     cached_user = cached.User.get(args.target)
     renderer = RecordsDiffRenderer(
         out=ColoredOutput(args.out, "green"),
-        lists=list_filter(args),
-        changes=change_filter(args),
+        lists=args.lists,
+        changes=args.changes,
         username=args.username,
         detailed=not args.summary,
         from_date=args.date1,
@@ -31,16 +31,21 @@ def run(args: Namespace) -> None:
         record2 = fetched.User.fetch(client, args.target, args.chunk_size)
 
         if args.date1 is None:
-            cached_user.dump_update(record2, renderer.render_block)
+            cached_user.dump_update(record2)
+            renderer.render(
+                cached_user.changelog[-1].pack_updates(
+                    args.username, args.lists, args.changes
+                )
+            )
             return
         cached_user.dump_update(record2)
     else:
-        record2 = cached_user.checkout(args.date2, renderer.lists)
+        record2 = cached_user.checkout(args.date2, args.lists)
 
     record1 = (
         cached_user
         if args.date1 is None
-        else cached_user.checkout(args.date1, renderer.lists)
+        else cached_user.checkout(args.date1, args.lists)
     )
 
     renderer.render(
@@ -59,29 +64,38 @@ def setup_parser(parser: ArgumentParser) -> None:
         "date1",
         nargs="?",
         type=date_parser,
-        metavar="first-record",
-        help="The date (DD-MM-YYYY) of the first record to use (defaults to the most recent one)",
+        metavar="previous-state",
+        help="The date (DD-MM-YYYY) of state to use as the previous state. "
+        "Any updates that were performed on that date are not included and if "
+        "left unspecified the most recent state is used.",
     )
     parser.add_argument(
         "date2",
         nargs="?",
         type=date_parser,
-        metavar="second-record",
-        help="The date (DD-MM-YYYY) of the second record to use (defaults to fetching from instagram)",
+        metavar="after-state",
+        help="The date (DD-MM-YYYY) of state to use as the after state. Any "
+        "updates that were performed on that date are not included and if left "
+        "unspecified the latest state will be fetched from instagram",
     )
     parser.add_argument(
         "-l",
-        "--list",
+        "--lists",
+        nargs="+",
         choices=LISTS,
+        action=UniqueChoices,
+        default=LISTS,
         help="An optional to display just the 'followers' or 'following' list "
         "(by default it displays both)",
     )
     parser.add_argument(
         "-c",
-        "--change",
+        "--changes",
+        nargs="+",
         choices=CHANGES,
-        help="Display only one change type in the output "
-        "(i.e. only added/removed/renamed users)",
+        action=UniqueChoices,
+        default=CHANGES,
+        help="Display only specific change types in the output",
     )
     parser.add_argument(
         "--username",

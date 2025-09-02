@@ -2,10 +2,11 @@ from argparse import ArgumentParser, FileType, Namespace
 from sys import stdout
 
 from .models import cached
-from .utils.filters import list_filter
 from .utils.parsers import date_parser
 from .utils.renderers import UsersDiffRenderer, UsersDiffRendererData
 from .utils.streams import ColoredOutput
+from .utils.constants import LISTS
+from .utils.actions import UniqueChoices
 
 
 def get_comparison_type(args: Namespace):
@@ -17,7 +18,6 @@ def get_comparison_type(args: Namespace):
 
 
 def run(args: Namespace):
-    lists = list_filter(args)
     renderer = UsersDiffRenderer(
         out=ColoredOutput(args.out, "green"),
         lists=args.lists,
@@ -29,12 +29,19 @@ def run(args: Namespace):
     cached2 = cached.User.get(args.user2)
 
     user1 = (
-        cached1.checkout(args.record1, lists) if args.record1 is not None else cached1
+        cached1.checkout(args.state1, args.lists)
+        if args.state1 is not None
+        else cached1
     )
     user2 = (
-        cached2.checkout(args.record2, lists) if args.record2 is not None else cached2
+        cached2.checkout(args.state2, args.lists)
+        if args.state2 is not None
+        else cached2
     )
-    renderer.render()
+    renderer.render(
+        UsersDiffRendererData(args.user1, args.state1, user1),
+        UsersDiffRendererData(args.user2, args.state2, user2),
+    )
 
 
 def setup_parser(parser: ArgumentParser):
@@ -48,20 +55,27 @@ def setup_parser(parser: ArgumentParser):
         help="An optional file to output the result to",
     )
     parser.add_argument(
-        "-r1",
-        "--record1",
+        "-s1",
+        "--state1",
         type=date_parser,
-        help="The date of the first user's record to base comparison on (defaults to latest if not provided)",
+        metavar="DATE",
+        help="The date of the first user's state to base comparison on (defaults to "
+        "latest if not provided). No updates that happened in the date specified are included.",
     )
     parser.add_argument(
-        "-r2",
-        "--record2",
+        "-s2",
+        "--state2",
         type=date_parser,
-        help="The date of the second user's record to base comparison on (defaults to latest if not provided)",
+        metavar="DATE",
+        help="The date of the second user's state to base comparison on (defaults to "
+        "latest if not provided). No updates that happened in the date specified are included.",
     )
     parser.add_argument(
-        "--list",
-        choices=("followers", "followings"),
+        "--lists",
+        nargs="+",
+        choices=LISTS,
+        action=UniqueChoices,
+        default=LISTS,
         help="An option to choose which list's comparison "
         "results will be displayed (if not provided, both lists are displayed)",
     )

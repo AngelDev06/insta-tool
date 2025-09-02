@@ -1,5 +1,5 @@
-from datetime import date, datetime
-from typing import ClassVar, Optional, Self, Union
+from datetime import datetime, date
+from typing import ClassVar, Union, Optional
 
 from pydantic import BaseModel, Field, field_serializer
 
@@ -27,7 +27,20 @@ class StoryHistory(mixins.Cached, BaseModel):
                 current.viewers = story.viewers | current.viewers
             else:
                 self.stories[story_id] = Story.model_construct(
-                    timestamp=story.taken_at, viewers=story.viewers
+                    timestamp=story.timestamp, viewers=story.viewers
                 )
 
         self.dump(fetched_stories.username, fetched_stories.id)
+
+    def at(self, sid_or_date: Union[int, date]) -> tuple[int, Optional[Story]]:
+        if isinstance(sid_or_date, int):
+            return sid_or_date, self.stories.get(sid_or_date)
+        if not isinstance(sid_or_date, date):
+            raise TypeError(
+                "`sid_or_date` should be a valid date or a story id"
+            )
+        
+        for sid, story in self.stories.items():
+            if story.timestamp.date() == sid_or_date:
+                return sid, story
+        return 0, None

@@ -4,10 +4,10 @@ from sys import stdout
 from .models import cached
 from .utils.bots import Bot
 from .utils.constants import LISTS
-from .utils.filters import list_filter
 from .utils.parsers import date_parser
 from .utils.renderers import HistoryPointRenderer
 from .utils.streams import ColoredOutput
+from .utils.actions import UniqueChoices
 
 
 def run(args: Namespace) -> None:
@@ -18,7 +18,7 @@ def run(args: Namespace) -> None:
     renderer = HistoryPointRenderer(
         out=ColoredOutput(args.out, "green"),
         history_point=args.date,
-        lists=list_filter(args.list),
+        lists=args.lists,
         target=args.target,
         username=args.username,
         summary=args.summary,
@@ -26,7 +26,9 @@ def run(args: Namespace) -> None:
 
     cached_user = cached.User.get(args.target)
     if not cached_user:
-        args.out.write("Can't reconstruct a point in history for an untracked user\n")
+        args.out.write(
+            "Can't reconstruct a point in history for an untracked user\n"
+        )
         return
     renderer.render(cached_user.checkout(args.date, renderer.lists))
 
@@ -51,9 +53,12 @@ def setup_parser(parser: ArgumentParser) -> None:
         help="An optional file to output the result",
     )
     parser.add_argument(
-        "--list",
+        "--lists",
+        nargs="+",
         choices=LISTS,
-        help="Display only either 'followers' or 'followings' list",
+        action=UniqueChoices,
+        default=LISTS,
+        help="Specify the lists to display (defaults to both followers and followings)",
     )
     parser.add_argument(
         "--username",

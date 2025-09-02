@@ -96,4 +96,4 @@ class StoryViewersRenderer(BasicListRenderer):
             self.out.write(f" {len(story.viewers)}\n")
             return
         self.out.write("\n")
-        super().render(story.viewers_usernames)
+        super().render(story.viewers_strings)

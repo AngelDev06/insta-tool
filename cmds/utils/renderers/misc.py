@@ -25,8 +25,7 @@ class ViewerHistoryRenderer:
         self.render_header()
 
         if self.deep:
-            stories, itr = tee(stories)
-            uid = self.lookup_uid(itr)
+            uid = self.lookup_uid(stories.items())
             if uid is None:
                 self.render_failed_result()
                 return

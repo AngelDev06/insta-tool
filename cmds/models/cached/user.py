@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import date, datetime
-from typing import ClassVar, Iterable, Optional, Protocol, Self, overload
+from typing import ClassVar, Iterable, Optional, Self, overload
 
 from pydantic import BaseModel, Field, field_serializer
 
@@ -22,10 +22,6 @@ from ..update import (
 )
 
 
-class OutputUpdateCallback(Protocol):
-    def __call__(self, list_name: ListsType, update: mixins.Update) -> None: ...
-
-
 class Update(BaseModel):
     added: dict[int, str] = Field(default_factory=dict)
     removed: dict[int, str] = Field(default_factory=dict)
@@ -34,7 +30,8 @@ class Update(BaseModel):
     def _packed_change(self, change: ChangesType):
         if change == "renamed":
             return {
-                uid: RenamedUser(old, new) for uid, (old, new) in self.renamed.items()
+                uid: RenamedUser(old, new)
+                for uid, (old, new) in self.renamed.items()
             }
         return getattr(self, change)
 
@@ -42,7 +39,9 @@ class Update(BaseModel):
         for uid, (old, new) in self.renamed.items():
             if username == old or username == new:
                 return SingleUpdateData(
-                    change="renamed", user_id=uid, username=RenamedUser(old, new)
+                    change="renamed",
+                    user_id=uid,
+                    username=RenamedUser(old, new),
                 )
         return SingleUpdateData()
 
@@ -70,7 +69,9 @@ class Update(BaseModel):
             change_dict: dict[int, str] = getattr(self, change)
             for uid, name in change_dict.items():
                 if name == username:
-                    return SingleUpdateData(change=change, user_id=uid, username=name)
+                    return SingleUpdateData(
+                        change=change, user_id=uid, username=name
+                    )
         return SingleUpdateData()
 
 
@@ -91,7 +92,9 @@ class ChangelogEntry(BaseModel):
     ) -> UserUpdateData:
         return UserUpdateData(
             **{
-                list_name: getattr(self, list_name).pack_updates(username, changes)
+                list_name: getattr(self, list_name).pack_updates(
+                    username, changes
+                )
                 for list_name in lists
             }
         )
@@ -103,24 +106,24 @@ class User(mixins.User, mixins.Cached, BaseModel):
     followings: dict[int, str] = Field(default_factory=dict)
     changelog: list[ChangelogEntry] = Field(default_factory=list)
 
-    def is_empty(self) -> bool:
-        return not bool(self.followers or self.followings or self.changelog)
-
     def __bool__(self) -> bool:
-        return not self.is_empty()
+        return bool(self.followers or self.followings or self.changelog)
 
     def checkout(self, at: date, lists: Iterable[ListsType] = LISTS) -> Self:
         """Backtraces up to a specific point in time (specified by `at`) and
         recovers the state of followers/followings
+        
+        Note that the state returned does not include any updates that were performed 
+        that day, meaning those (if any) were reverted
 
         Args:
             at (date): The point to which history will be recovered,
                 note that the result will include any updates that happened
                 during that day
-            lists (Iterable[Literal["followers", "followings"]]): The lists to recover,
+            lists (Iterable[ListsType]): The lists to recover,
                 defaults to both followers and followings
         Returns:
-            A new `CachedUser` instance containing the state at the point in time specified
+            A new instance containing the state at the point in time specified
         """
         kwargs: dict[str, dict[int, str]] = {
             list_name: getattr(self, list_name).copy() for list_name in lists
@@ -150,11 +153,7 @@ class User(mixins.User, mixins.Cached, BaseModel):
             changelog=deepcopy(self.changelog[:changelog_count]),
         )
 
-    def dump_update(
-        self,
-        fetched_user: fetched.User,
-        callback: Optional[OutputUpdateCallback] = None,
-    ) -> None:
+    def dump_update(self, fetched_user: fetched.User) -> None:
         """Creates a new changelog entry by comparing the dynamically fetched state
         with the latest cached one. It will include users with added/removed/renamed updates
         and will proceed to back it up in a file
@@ -171,17 +170,6 @@ class User(mixins.User, mixins.Cached, BaseModel):
             update.added = fetched_user.added_from(self, list_name)  # type: ignore
             update.removed = fetched_user.removed_from(self, list_name)  # type: ignore
             update.renamed = fetched_user.renamed_from(self, list_name)  # type: ignore
-
-            if callback is not None:
-                callback(
-                    list_name,
-                    UpdateContainer(
-                        **{
-                            change_type: getattr(update, change_type)
-                            for change_type in CHANGES
-                        }
-                    ),
-                )
 
         if fetched_user.follower_count != len(
             fetched_user.followers
