@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 
-from .storycmds import listcmd, lookup, diff
+from .storycmds import listcmd, lookup, diff, log
 
 
 def setup_parser(parser: ArgumentParser):
@@ -30,6 +30,13 @@ def setup_parser(parser: ArgumentParser):
             help="Compare two story records (i.e. the full viewer lists) "
             "to determine the updates that occurred between them (e.g. "
             "added/removed viewers)",
+        )
+    )
+    log.setup_parser(
+        operations.add_parser(
+            "log",
+            help="Log viewer changelog (e.g. added/removed viewers) "
+            "throughout the story history that is available",
         )
     )
     parser.set_defaults(func=lambda args: args.subfunc(args))

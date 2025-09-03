@@ -2,12 +2,12 @@ from argparse import ArgumentParser, FileType, Namespace
 from sys import stdout
 
 from ..models import cached, fetched
+from ..utils.actions import UniqueChoices
 from ..utils.bots import Bot
 from ..utils.constants import CHANGES, LISTS
 from ..utils.parsers import date_parser
 from ..utils.renderers import RecordsDiffRenderer
 from ..utils.streams import ColoredOutput
-from ..utils.actions import UniqueChoices
 
 
 def run(args: Namespace) -> None:

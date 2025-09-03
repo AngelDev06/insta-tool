@@ -4,6 +4,7 @@ from .diffs import (
     UsersDiffRenderer,
     UsersDiffRendererData,
     ViewersDiffRenderer,
+    ViewersChangelogRenderer,
 )
 from .lists import (
     HistoryPointRenderer,

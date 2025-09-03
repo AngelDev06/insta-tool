@@ -1,6 +1,5 @@
-from argparse import Action, ArgumentParser, FileType, Namespace
-from collections.abc import Callable
-from typing import Any, Iterable, Optional, Sequence, Union
+from argparse import Action, ArgumentParser, Namespace
+from typing import Any, Optional, Sequence, Union
 
 from .bots import Config
 

@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Collection, Literal, Optional, TypeAlias
+from typing import Collection, Literal, Optional, TypeAlias, Union, Iterable
 
 from ...models import cached, mixins
 from ...models.diff import SingleDiff
@@ -239,16 +239,17 @@ class UsersDiffRenderer(DiffRenderer):
         self.out.cwrite(str(update.username))
         self.out.write("\n")
 
+
 @dataclass
 class ViewersDiffRenderer(DiffRenderer):
     lists: Collection[Literal["viewers"]] = field(init=False)
-    
+
     def __post_init__(self):
-        self.lists = ("viewers",) # type: ignore[override]
-    
-    def render(self, story1: mixins.Story, story2: mixins.Story): # type: ignore[override]
+        self.lists = ("viewers",)  # type: ignore[override]
+
+    def render(self, story1: mixins.Story, story2: mixins.Story):  # type: ignore[override]
         self.render_header(story1, story2)
-        
+
         update = story2.updates_from(story1, self.username, self.changes)
         if not update:
             self.out.write("No Update\n")
@@ -257,13 +258,93 @@ class ViewersDiffRenderer(DiffRenderer):
             super().render_block(update)
         else:
             super().render_username(update)
-    
-    def render_header(self, story1: mixins.Story, story2: mixins.Story): # type: ignore[override]
+
+    def render_header(self, story1: mixins.Story, story2: mixins.Story):  # type: ignore[override]
         self.out.write("Story Viewers Update\n")
-        self.out.write(f"From Story at Date: {story1.timestamp.strftime(DATE_OUTPUT_FORMAT)}\n")
-        self.out.write(f"To Story at Date: {story2.timestamp.strftime(DATE_OUTPUT_FORMAT)}\n")
+        self.out.write(
+            f"From Story at Date: {story1.timestamp.strftime(DATE_OUTPUT_FORMAT)}\n"
+        )
+        self.out.write(
+            f"To Story at Date: {story2.timestamp.strftime(DATE_OUTPUT_FORMAT)}\n"
+        )
         self.out.write("Filters:\n")
         if self.username is not None:
             self.out.write(f"  Username: {self.username}\n")
         self.out.write(f"  Changes: {', '.join(self.changes)}\n")
         self.out.write(f"  Detailed: {self.detailed}\n\n")
+
+
+@dataclass
+class ViewersChangelogRenderer(DiffRenderer):
+    lists: Collection[Literal["viewers"]] = field(init=False)
+    target: str
+    from_record: Optional[Union[int, date]]
+    to_record: Optional[Union[int, date]]
+    all: bool
+
+    def __post_init__(self):
+        self.lists = ("viewers",)  # type: ignore[override]
+
+    def render(self, records: cached.StoryHistory):
+        self.render_header()
+        if not records:
+            self.out.set_attrs(color="red")
+            self.out.cwrite("No Records Found")
+            self.out.write("\n")
+            return
+
+        stories_range = reversed(
+            list(records.range(self.from_record, self.to_record))
+        )
+        sid2, story2 = next(stories_range)
+
+        for sid1, story1 in stories_range:
+            update = story2.updates_from(story1, self.username, self.changes)
+            if not update:
+                if self.all:
+                    self.render_log_header((sid1, story1), (sid2, story2))
+                    self.out.write("No Update\n\n")
+                sid2, story2 = sid1, story1
+                continue
+            self.render_log_header((sid1, story1), (sid2, story2))
+            if self.username is None:
+                super().render_block(update)
+            else:
+                super().render_username(update)
+            self.out.write("\n")
+            sid2, story2 = sid1, story1
+
+    def render_header(self):
+        self.out.write("Story Viewers Changelog\n")
+        self.out.write(f"Story Owner: {self.target}\n")
+        for record_border, output_text in (
+            (self.from_record, "Beggining from"),
+            (self.to_record, "Ending on"),
+        ):
+            if record_border is None:
+                continue
+            if isinstance(record_border, int):
+                self.out.write(
+                    f"{output_text} story with ID: {record_border}\n"
+                )
+            else:
+                self.out.write(
+                    f"{output_text} date: {record_border.strftime(DATE_OUTPUT_FORMAT)}\n"
+                )
+        super().render_header()
+        self.out.write(f"  Include All: {self.all}\n")
+        self.out.write("\n")
+
+    def render_log_header(
+        self,
+        from_data: tuple[int, cached.Story],
+        to_data: tuple[int, cached.Story],
+    ):
+        self.out.write("Changelog\n")
+        self.out.write(
+            " -> ".join(
+                f"Story ({data[0]}, {data[1].timestamp.strftime(DATE_OUTPUT_FORMAT)})"
+                for data in (from_data, to_data)
+            )
+        )
+        self.out.write("\n")

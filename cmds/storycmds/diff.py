@@ -4,8 +4,8 @@ from itertools import dropwhile
 from typing import Optional, Union, overload, NoReturn
 from datetime import date
 
-from ..utils.constants import CHANGES
 from ..utils.actions import UniqueChoices
+from ..utils.constants import CHANGES
 from ..utils.parsers import id_or_date
 from ..utils.tool_logger import logger
 from ..utils.renderers import ViewersDiffRenderer

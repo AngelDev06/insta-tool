@@ -2,11 +2,11 @@ from argparse import ArgumentParser, FileType, Namespace
 from sys import stdout
 
 from .models import cached
+from .utils.actions import UniqueChoices
 from .utils.parsers import date_parser
 from .utils.renderers import UsersDiffRenderer, UsersDiffRendererData
 from .utils.streams import ColoredOutput
 from .utils.constants import LISTS
-from .utils.actions import UniqueChoices
 
 
 def get_comparison_type(args: Namespace):

@@ -4,11 +4,11 @@ from sys import stdout
 
 from . import checkout
 from .models import cached, fetched
+from .utils.actions import UniqueChoices
 from .utils.bots import Bot
 from .utils.constants import LISTS
 from .utils.renderers import HistoryPointRenderer
 from .utils.streams import ColoredOutput
-from .utils.actions import UniqueChoices
 
 
 def run(args: Namespace):

@@ -11,6 +11,7 @@ def main():
         prog="insta",
         description="A tool for interacting with the instagram api",
     )
+    
     parser.add_argument(
         "--name",
         help="The name of the account to login",
