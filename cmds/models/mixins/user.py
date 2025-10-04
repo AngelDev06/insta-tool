@@ -1,4 +1,4 @@
-from typing import Iterable, Optional, Self, Type
+from typing import Iterable, Optional, Self, Type, cast
 
 from ...utils.constants import (
     CHANGES,
@@ -22,6 +22,14 @@ class User:
             if not reverse
             else self.followers_usernames - self.followings_usernames
         )
+
+    def renamed_from_as_tuples(
+        self, other: Self, list_name: ListsType
+    ) -> dict[int, tuple[str, str]]:
+        return {
+            uid: (cast(str, renamed.old), cast(str, renamed.new))
+            for uid, renamed in self.renamed_from(other, list_name).items()
+        }
 
     def renamed_from(self, other: Self, list_name: ListsType) -> dict[int, RenamedUser]:
         current_list: dict[int, str] = getattr(self, list_name)
@@ -131,6 +139,7 @@ class User:
                 for uid, renamed in updates.items():
                     if username == renamed.old or username == renamed.new:
                         return updatecls(change_type, uid, renamed)  # type: ignore
+                continue
 
             for uid, name in updates.items():
                 if username == name:

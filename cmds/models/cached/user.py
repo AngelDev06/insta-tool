@@ -30,8 +30,7 @@ class Update(BaseModel):
     def _packed_change(self, change: ChangesType):
         if change == "renamed":
             return {
-                uid: RenamedUser(old, new)
-                for uid, (old, new) in self.renamed.items()
+                uid: RenamedUser(old, new) for uid, (old, new) in self.renamed.items()
             }
         return getattr(self, change)
 
@@ -69,9 +68,7 @@ class Update(BaseModel):
             change_dict: dict[int, str] = getattr(self, change)
             for uid, name in change_dict.items():
                 if name == username:
-                    return SingleUpdateData(
-                        change=change, user_id=uid, username=name
-                    )
+                    return SingleUpdateData(change=change, user_id=uid, username=name)
         return SingleUpdateData()
 
 
@@ -92,9 +89,7 @@ class ChangelogEntry(BaseModel):
     ) -> UserUpdateData:
         return UserUpdateData(
             **{
-                list_name: getattr(self, list_name).pack_updates(
-                    username, changes
-                )
+                list_name: getattr(self, list_name).pack_updates(username, changes)
                 for list_name in lists
             }
         )
@@ -112,8 +107,8 @@ class User(mixins.User, mixins.Cached, BaseModel):
     def checkout(self, at: date, lists: Iterable[ListsType] = LISTS) -> Self:
         """Backtraces up to a specific point in time (specified by `at`) and
         recovers the state of followers/followings
-        
-        Note that the state returned does not include any updates that were performed 
+
+        Note that the state returned does not include any updates that were performed
         that day, meaning those (if any) were reverted
 
         Args:
@@ -167,9 +162,9 @@ class User(mixins.User, mixins.Cached, BaseModel):
 
         for list_name in LISTS:
             update: Update = getattr(entry, list_name)
-            update.added = fetched_user.added_from(self, list_name)  # type: ignore
-            update.removed = fetched_user.removed_from(self, list_name)  # type: ignore
-            update.renamed = fetched_user.renamed_from(self, list_name)  # type: ignore
+            update.added = fetched_user.added_from(self, list_name)
+            update.removed = fetched_user.removed_from(self, list_name)
+            update.renamed = fetched_user.renamed_from_as_tuples(self, list_name)
 
         if fetched_user.follower_count != len(
             fetched_user.followers
