@@ -11,6 +11,8 @@ from ..constants import (
     ChangesType,
     DiffsType,
     ListsType,
+    LISTS,
+    CHANGES,
 )
 from ..filters import date_filter
 from ..streams import ColoredOutput
@@ -167,6 +169,43 @@ class ChangelogRenderer(DiffRenderer):
             self.out.write(f"  To Date: {self.to_date.strftime('%d/%m/%Y')}\n")
         self.out.write(f"  Include All: {self.all}\n")
         self.out.write("\n")
+
+
+@dataclass
+class DeletableLogEntriesRenderer(ChangelogRenderer):
+    lists: Collection[ListsType] = field(init=False)
+    changes: Collection[ChangesType] = field(init=False)
+    username: Optional[str] = field(init=False)
+    detailed: bool = field(init=False)
+    target: str = field(init=False)
+    from_date: Optional[date] = field(init=False)
+    to_date: Optional[date] = field(init=False)
+    all: bool = field(init=False)
+
+    def __post_init__(self):
+        self.lists = LISTS
+        self.changes = CHANGES
+        self.username = None
+        self.detailed = False
+        self.from_date = None
+        self.to_date = None
+        self.all = True
+        self.current_index: int = 1
+
+    def render(self, changelog: list[cached.ChangelogEntry]) -> None:
+        self.out.write(
+            f"A total of {len(changelog)} options are available "
+            f"for deletion on the date specified:\n\n"
+        )
+        super().render(changelog)
+
+    def render_log_header(self, log: cached.ChangelogEntry) -> None:
+        self.out.write(f"{self.current_index}: ")
+        super().render_log_header(log)
+        self.current_index += 1
+
+    def render_header(self) -> None:
+        pass
 
 
 @dataclass(frozen=True)

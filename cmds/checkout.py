@@ -37,7 +37,8 @@ def setup_parser(parser: ArgumentParser) -> None:
     parser.add_argument(
         "date",
         type=date_parser,
-        help="The date based on which history will be reconstructed (DD-MM-YYYY)",
+        help="The date based on which history will be reconstructed (DD-MM-YYYY). "
+        "Any updates performed on that date will have no effect in the state displayed",
     )
     parser.add_argument(
         "target",

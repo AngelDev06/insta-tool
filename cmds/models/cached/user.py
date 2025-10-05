@@ -3,10 +3,13 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import date, datetime
 from typing import ClassVar, Iterable, Optional, Self, overload
+from sys import stdout
 
 from pydantic import BaseModel, Field, field_serializer
 
 from ...utils.constants import CHANGES, LISTS, ChangesType, ListsType
+from ...utils.streams import ColoredOutput
+from ...utils.uids import UIDMap
 from .. import fetched, mixins
 from ..update import (
     RenamedUser,
@@ -30,7 +33,8 @@ class Update(BaseModel):
     def _packed_change(self, change: ChangesType):
         if change == "renamed":
             return {
-                uid: RenamedUser(old, new) for uid, (old, new) in self.renamed.items()
+                uid: RenamedUser(old, new)
+                for uid, (old, new) in self.renamed.items()
             }
         return getattr(self, change)
 
@@ -68,7 +72,9 @@ class Update(BaseModel):
             change_dict: dict[int, str] = getattr(self, change)
             for uid, name in change_dict.items():
                 if name == username:
-                    return SingleUpdateData(change=change, user_id=uid, username=name)
+                    return SingleUpdateData(
+                        change=change, user_id=uid, username=name
+                    )
         return SingleUpdateData()
 
 
@@ -89,7 +95,9 @@ class ChangelogEntry(BaseModel):
     ) -> UserUpdateData:
         return UserUpdateData(
             **{
-                list_name: getattr(self, list_name).pack_updates(username, changes)
+                list_name: getattr(self, list_name).pack_updates(
+                    username, changes
+                )
                 for list_name in lists
             }
         )
@@ -147,6 +155,15 @@ class User(mixins.User, mixins.Cached, BaseModel):
             **kwargs,
             changelog=deepcopy(self.changelog[:changelog_count]),
         )
+    
+    def reset(self, username: str, at: date) -> None:
+        if not self.changelog:
+            return
+        updated = self.checkout(at)
+        self.followers = updated.followers
+        self.followings = updated.followings
+        self.changelog = updated.changelog
+        self.dump(username, UIDMap.get().uid_of(username))
 
     def dump_update(self, fetched_user: fetched.User) -> None:
         """Creates a new changelog entry by comparing the dynamically fetched state
@@ -164,7 +181,9 @@ class User(mixins.User, mixins.Cached, BaseModel):
             update: Update = getattr(entry, list_name)
             update.added = fetched_user.added_from(self, list_name)
             update.removed = fetched_user.removed_from(self, list_name)
-            update.renamed = fetched_user.renamed_from_as_tuples(self, list_name)
+            update.renamed = fetched_user.renamed_from_as_tuples(
+                self, list_name
+            )
 
         if fetched_user.follower_count != len(
             fetched_user.followers
@@ -181,3 +200,122 @@ class User(mixins.User, mixins.Cached, BaseModel):
         self.followings = fetched_user.followings
         self.changelog.append(entry)
         self.dump(fetched_user.username, fetched_user.id)
+
+    def delete(self, username: str, record: date, hard: bool = False) -> bool:
+        if not self.changelog:
+            return False
+        logs = reversed(self.changelog)
+        selected: Optional[ChangelogEntry] = None
+        prev: Optional[ChangelogEntry] = None
+        current: ChangelogEntry = next(logs)
+        delete_index: int = 0
+
+        if current.timestamp.date() == record:
+            selected = current
+
+        for index, log in enumerate(logs, 1):
+            prev, current = current, log
+
+            if current.timestamp.date() != record:
+                if selected is not None and current.timestamp.date() < record:
+                    break
+                continue
+
+            if selected is None:
+                selected = current
+                delete_index = index
+                continue
+
+            from ...utils.renderers import DeletableLogEntriesRenderer
+
+            options = [
+                log for log in logs if log.timestamp.date() == record
+            ]  # newest to oldest
+            options.reverse()  # oldest to newest
+            options.extend((log, selected))
+            renderer = DeletableLogEntriesRenderer(
+                ColoredOutput(stdout, "green")
+            )  # rendered from newest to oldest
+            renderer.render(options)
+
+            selection_input = input(
+                "Select the number of entry to delete "
+                "(on anything else the operation is cancelled): "
+            ).strip()
+            if not selection_input.isdigit():
+                return False
+            selection = int(
+                selection_input
+            )  # selection is from newest to oldest (as rendered), starting from 1
+            if not selection or selection > len(options):
+                return False
+
+            selected, prev = options[-selection : len(options) - selection + 2]
+            delete_index += selection - 1
+            break
+
+        if selected is None:
+            return False
+
+        self.changelog.pop(-delete_index - 1)
+
+        # no fixing operation is performed on hard deletes
+        if hard:
+            self.dump(username, UIDMap.get().uid_of(username))
+            return True
+
+        if prev is None:
+            for list_name in LISTS:
+                selected_list: Update = getattr(selected, list_name)
+                self_list: dict[int, str] = getattr(self, list_name)
+
+                for uid in selected_list.added.keys():
+                    del self_list[uid]
+
+                self_list |= selected_list.removed
+
+                for uid, (old_name, _) in selected_list.renamed.items():
+                    self_list[uid] = old_name
+            self.dump(username, UIDMap.get().uid_of(username))
+            return True
+
+        for list_name in LISTS:
+            prev_list: Update = getattr(prev, list_name)
+            selected_list: Update = getattr(selected, list_name)
+
+            updated_added = {  # exclude users removed and re-added
+                key: prev_list.added[key]
+                for key in prev_list.added.keys()
+                - selected_list.removed.keys()
+            } | {  # exclude users added and removed afterwards
+                key: selected_list.added[key]
+                for key in selected_list.added.keys()
+                - prev_list.removed.keys()
+            }
+            updated_removed = {  # exclude users added and removed afterwards
+                key: prev_list.removed[key]
+                for key in prev_list.removed.keys()
+                - selected_list.added.keys()
+            } | {  # exclude users removed and re-added
+                key: selected_list.removed[key]
+                for key in selected_list.removed.keys()
+                - prev_list.added.keys()
+            }
+
+            prev_list.added = updated_added
+            prev_list.removed = updated_removed
+
+            common_renamed_keys = (
+                prev_list.renamed.keys() & selected_list.renamed.keys()
+            )
+            extra_renamed_keys = (
+                selected_list.renamed.keys() - prev_list.renamed.keys()
+            )
+
+            prev_list.renamed |= {
+                key: (selected_list.renamed[key][0], prev_list.renamed[key][1])
+                for key in common_renamed_keys
+            } | {key: selected_list.renamed[key] for key in extra_renamed_keys}
+
+        self.dump(username, UIDMap.get().uid_of(username))
+        return True

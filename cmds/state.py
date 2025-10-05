@@ -12,33 +12,26 @@ from .utils.streams import ColoredOutput
 
 
 def run(args: Namespace):
-    if not args.sync:
-        checkout.run(
-            Namespace(
-                date=date.today() + timedelta(days=1),
-                target=args.target,
-                out=args.out,
-                list=None,
-                username=None,
-                summary=args.summary,
-            )
-        )
-        return
     bot = Bot.get(args.name, args.password, args.tfa_seed)
     if not args.target:
         args.target = bot.username
-    client = bot.login()
-    state = fetched.User.fetch(client, args.target, args.chunk_size)
-    cached.User.get(args.target).dump_update(state)
+
+    cached_user = cached.User.get(args.target)
+
+    if args.sync:
+        cached_user.dump_update(
+            fetched.User.fetch(bot.login(), args.target, args.chunk_size)
+        )
+
     renderer = HistoryPointRenderer(
         out=ColoredOutput(args.out, "green"),
         history_point=date.today(),
         lists=args.lists,
         target=args.target,
-        username=None,
+        username=args.username,
         summary=args.summary,
     )
-    renderer.render(state)
+    renderer.render(cached_user)
 
 
 def setup_parser(parser: ArgumentParser):
@@ -62,6 +55,11 @@ def setup_parser(parser: ArgumentParser):
         action=UniqueChoices,
         default=LISTS,
         help="Specify the lists to display",
+    )
+    parser.add_argument(
+        "--username",
+        help="Tell whether a specific user is currently a "
+        "follower/following of the target account",
     )
     parser.add_argument(
         "--summary",
