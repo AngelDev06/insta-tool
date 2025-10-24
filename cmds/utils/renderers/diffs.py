@@ -324,17 +324,24 @@ class ViewersChangelogRenderer(DiffRenderer):
     def __post_init__(self):
         self.lists = ("viewers",)  # type: ignore[override]
 
-    def render(self, records: cached.StoryHistory):
+    def render(self, records: cached.StoryHistory): # type: ignore[override]
         self.render_header()
         if not records:
-            self.out.set_attrs(color="red")
-            self.out.cwrite("No Records Found")
-            self.out.write("\n")
+            self.render_no_records()
             return
 
-        stories_range = reversed(
-            list(records.range(self.from_record, self.to_record))
-        )
+        stories_range = list(records.range(self.from_record, self.to_record))
+        if not stories_range:
+            self.render_no_records()
+            return
+        if len(stories_range) == 1:
+            sid, story = stories_range[0]
+            self.out.write(
+                f"Story ({sid}, {story.timestamp.strftime(DATE_OUTPUT_FORMAT)})\n"
+            )
+            return
+
+        stories_range = reversed(stories_range)
         sid2, story2 = next(stories_range)
 
         for sid1, story1 in stories_range:
@@ -386,4 +393,9 @@ class ViewersChangelogRenderer(DiffRenderer):
                 for data in (from_data, to_data)
             )
         )
+        self.out.write("\n")
+
+    def render_no_records(self):
+        self.out.set_attrs(color="red")
+        self.out.cwrite("No Records Found")
         self.out.write("\n")

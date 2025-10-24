@@ -65,6 +65,9 @@ class Stories:
                 for story in stories
             },
         )
+    
+    def items(self):
+        return self.stories.items()
 
     def __iter__(self):
         return iter(self.stories.items())

@@ -6,6 +6,9 @@ from pydantic import BaseModel, Field, field_serializer
 
 from .. import fetched, mixins
 from ..viewer import Viewer
+from ...utils.uids import UIDMap
+from ...utils.constants import DATE_OUTPUT_FORMAT
+from ...utils.tool_logger import logger
 
 
 class Story(mixins.Story, BaseModel):
@@ -20,6 +23,9 @@ class Story(mixins.Story, BaseModel):
 class StoryHistory(mixins.Cached, BaseModel):
     subdir: ClassVar[str] = "stories"
     stories: dict[int, Story] = Field(default_factory=dict)
+
+    def __bool__(self) -> bool:
+        return bool(self.stories)
 
     def dump_update(self, fetched_stories: fetched.Stories) -> None:
         for story_id, story in fetched_stories:
@@ -80,3 +86,56 @@ class StoryHistory(mixins.Cached, BaseModel):
             self._range_should_continue(end),
             dropwhile(self._range_not_started(start), self.stories.items()),
         )
+
+    def delete(self, owner: str, record: Union[date, int]) -> bool:
+        if not self.stories:
+            return False
+        if isinstance(record, int):
+            return bool(self.stories.pop(record, None))
+
+        captured: Optional[tuple[int, Story]] = None
+        iterator = reversed(self.stories.items())
+
+        for sid, story in iterator:
+            if story.timestamp.date() != record:
+                if not captured:
+                    continue
+                break
+
+            if not captured:
+                captured = (sid, story)
+                continue
+
+            options = list(
+                takewhile(
+                    lambda item: item[1].timestamp.date() == record, iterator
+                )
+            )  # newest to oldest
+            options[0:0] = [captured, (sid, story)]
+
+            print("Multiple stories were found on specified date:")
+            for index, (sid2, story2) in enumerate(options, 1):
+                print(
+                    f"{index}: Story ({sid2}, {story2.timestamp.strftime(DATE_OUTPUT_FORMAT)})"
+                )
+
+            selection = input("Specify which one to remove by index: ").strip()
+            if not selection.isdigit():
+                return False
+            selection = int(selection)
+            if not selection or selection > len(options):
+                return False
+
+            captured = options[selection - 1]
+            break
+
+        if not captured:
+            return False
+
+        self.stories.pop(captured[0])
+        uid = UIDMap.get().uid_of(owner)
+        if uid is None:
+            logger.critical(f"User ID of story owner {owner} not registered")
+            raise RuntimeError("Missing UID")
+        self.dump(owner, uid)
+        return True
