@@ -2,12 +2,18 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import date, datetime
-from typing import ClassVar, Iterable, Optional, Self, overload
 from sys import stdout
+from typing import Any, ClassVar, Iterable, Optional, Self, overload
 
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, Field, field_serializer, field_validator
 
-from ...utils.constants import CHANGES, LISTS, ChangesType, ListsType
+from ...utils.constants import (
+    CHANGES,
+    DATE_OUTPUT_FORMAT,
+    LISTS,
+    ChangesType,
+    ListsType,
+)
 from ...utils.streams import ColoredOutput
 from ...utils.uids import UIDMap
 from .. import fetched, mixins
@@ -33,8 +39,7 @@ class Update(BaseModel):
     def _packed_change(self, change: ChangesType):
         if change == "renamed":
             return {
-                uid: RenamedUser(old, new)
-                for uid, (old, new) in self.renamed.items()
+                uid: RenamedUser(old, new) for uid, (old, new) in self.renamed.items()
             }
         return getattr(self, change)
 
@@ -72,9 +77,7 @@ class Update(BaseModel):
             change_dict: dict[int, str] = getattr(self, change)
             for uid, name in change_dict.items():
                 if name == username:
-                    return SingleUpdateData(
-                        change=change, user_id=uid, username=name
-                    )
+                    return SingleUpdateData(change=change, user_id=uid, username=name)
         return SingleUpdateData()
 
 
@@ -87,6 +90,15 @@ class ChangelogEntry(BaseModel):
     def serialize_timestamp(self, timestamp: datetime, _info):
         return timestamp.timestamp()
 
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def validate_timestamp(cls, timestamp: Any) -> datetime:
+        if isinstance(timestamp, str):
+            return datetime.strptime(timestamp, DATE_OUTPUT_FORMAT)
+        if isinstance(timestamp, float):
+            return datetime.fromtimestamp(timestamp)
+        raise TypeError("invalid type of timestamp")
+
     def pack_updates(
         self,
         username: Optional[str] = None,
@@ -95,9 +107,7 @@ class ChangelogEntry(BaseModel):
     ) -> UserUpdateData:
         return UserUpdateData(
             **{
-                list_name: getattr(self, list_name).pack_updates(
-                    username, changes
-                )
+                list_name: getattr(self, list_name).pack_updates(username, changes)
                 for list_name in lists
             }
         )
@@ -155,7 +165,7 @@ class User(mixins.User, mixins.Cached, BaseModel):
             **kwargs,
             changelog=deepcopy(self.changelog[:changelog_count]),
         )
-    
+
     def reset(self, username: str, at: date) -> None:
         if not self.changelog:
             return
@@ -181,9 +191,7 @@ class User(mixins.User, mixins.Cached, BaseModel):
             update: Update = getattr(entry, list_name)
             update.added = fetched_user.added_from(self, list_name)
             update.removed = fetched_user.removed_from(self, list_name)
-            update.renamed = fetched_user.renamed_from_as_tuples(
-                self, list_name
-            )
+            update.renamed = fetched_user.renamed_from_as_tuples(self, list_name)
 
         if fetched_user.follower_count != len(
             fetched_user.followers
@@ -285,21 +293,17 @@ class User(mixins.User, mixins.Cached, BaseModel):
 
             updated_added = {  # exclude users removed and re-added
                 key: prev_list.added[key]
-                for key in prev_list.added.keys()
-                - selected_list.removed.keys()
+                for key in prev_list.added.keys() - selected_list.removed.keys()
             } | {  # exclude users added and removed afterwards
                 key: selected_list.added[key]
-                for key in selected_list.added.keys()
-                - prev_list.removed.keys()
+                for key in selected_list.added.keys() - prev_list.removed.keys()
             }
             updated_removed = {  # exclude users added and removed afterwards
                 key: prev_list.removed[key]
-                for key in prev_list.removed.keys()
-                - selected_list.added.keys()
+                for key in prev_list.removed.keys() - selected_list.added.keys()
             } | {  # exclude users removed and re-added
                 key: selected_list.removed[key]
-                for key in selected_list.removed.keys()
-                - prev_list.added.keys()
+                for key in selected_list.removed.keys() - prev_list.added.keys()
             }
 
             prev_list.added = updated_added
@@ -308,9 +312,7 @@ class User(mixins.User, mixins.Cached, BaseModel):
             common_renamed_keys = (
                 prev_list.renamed.keys() & selected_list.renamed.keys()
             )
-            extra_renamed_keys = (
-                selected_list.renamed.keys() - prev_list.renamed.keys()
-            )
+            extra_renamed_keys = selected_list.renamed.keys() - prev_list.renamed.keys()
 
             prev_list.renamed |= {
                 key: (selected_list.renamed[key][0], prev_list.renamed[key][1])

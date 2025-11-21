@@ -18,7 +18,11 @@ def run(args: Namespace):
     cached_user = cached.User.get(args.target)
     renderer = ListsDiffRenderer(
         out=ColoredOutput(args.out, "green"),
-        at=args.date,
+        at=(
+            args.date
+            if args.date is None or args.date <= date.today()
+            else date.today()
+        ),
         reverse=args.reverse,
     )
 
@@ -63,6 +67,6 @@ def setup_parser(parser: ArgumentParser) -> None:
         help="Use a cached record instead of fetching lists online with "
         "an optional date (DD-MM-YYYY) that dictates the date of state to use "
         "(similarly to `checkout` the state does not include any updates that "
-        "happened in that date)"
+        "happened in that date)",
     )
     parser.set_defaults(subfunc=run)

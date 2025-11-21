@@ -1,14 +1,14 @@
-from datetime import datetime, date
-from typing import ClassVar, Union, Optional, Iterable, Callable
-from itertools import takewhile, dropwhile
+from datetime import date, datetime
+from itertools import dropwhile, takewhile
+from typing import Any, Callable, ClassVar, Iterable, Optional, Union
 
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, Field, field_serializer, field_validator
 
-from .. import fetched, mixins
-from ..viewer import Viewer
-from ...utils.uids import UIDMap
 from ...utils.constants import DATE_OUTPUT_FORMAT
 from ...utils.tool_logger import logger
+from ...utils.uids import UIDMap
+from .. import fetched, mixins
+from ..viewer import Viewer
 
 
 class Story(mixins.Story, BaseModel):
@@ -16,8 +16,17 @@ class Story(mixins.Story, BaseModel):
     viewers: dict[int, Viewer]
 
     @field_serializer("timestamp")
-    def serialize_taken_at(self, timestamp: datetime, _info):
+    def serialize_timestamp(self, timestamp: datetime, _info):
         return timestamp.timestamp()
+
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def validate_timestamp(cls, timestamp: Any) -> datetime:
+        if isinstance(timestamp, str):
+            return datetime.strptime(timestamp, DATE_OUTPUT_FORMAT)
+        if isinstance(timestamp, float):
+            return datetime.fromtimestamp(timestamp)
+        raise TypeError("invalid type of timestamp")
 
 
 class StoryHistory(mixins.Cached, BaseModel):
@@ -44,9 +53,7 @@ class StoryHistory(mixins.Cached, BaseModel):
         if isinstance(sid_or_date, int):
             return sid_or_date, self.stories.get(sid_or_date)
         if not isinstance(sid_or_date, date):
-            raise TypeError(
-                "`sid_or_date` should be a valid date or a story id"
-            )
+            raise TypeError("`sid_or_date` should be a valid date or a story id")
 
         for sid, story in self.stories.items():
             if story.timestamp.date() == sid_or_date:
@@ -107,9 +114,7 @@ class StoryHistory(mixins.Cached, BaseModel):
                 continue
 
             options = list(
-                takewhile(
-                    lambda item: item[1].timestamp.date() == record, iterator
-                )
+                takewhile(lambda item: item[1].timestamp.date() == record, iterator)
             )  # newest to oldest
             options[0:0] = [captured, (sid, story)]
 

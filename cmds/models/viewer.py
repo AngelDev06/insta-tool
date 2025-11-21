@@ -1,6 +1,7 @@
 from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel, field_serializer, field_validator
 
 from ..utils.constants import DATE_OUTPUT_FORMAT
 
@@ -15,6 +16,15 @@ class Viewer(BaseModel):
     @field_serializer("recorded_at")
     def serialize_recorded_at(self, recorded_at: datetime, _info):
         return recorded_at.timestamp()
+
+    @field_validator("recorded_at", mode="before")
+    @classmethod
+    def validate_recorded_at(cls, recorded_at: Any) -> datetime:
+        if isinstance(recorded_at, str):
+            return datetime.strptime(recorded_at, DATE_OUTPUT_FORMAT)
+        if isinstance(recorded_at, float):
+            return datetime.fromtimestamp(recorded_at)
+        raise TypeError("invalid type of timestamp")
 
     def __str__(self) -> str:
         return f"{self.name} ({self.recorded_at.strftime(DATE_OUTPUT_FORMAT)})"

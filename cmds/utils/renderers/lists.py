@@ -90,10 +90,9 @@ class StoryViewersRenderer(BasicListRenderer):
             self.out.cwrite("No Viewers")
             self.out.write("\n")
             return
-        self.out.write("Viewers:")
+        self.out.write(f"Viewers ({len(story.viewers)})")
 
         if self.summary:
-            self.out.write(f" {len(story.viewers)}\n")
             return
-        self.out.write("\n")
+        self.out.write(":\n")
         super().render(story.viewers_strings)
