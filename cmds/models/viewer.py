@@ -12,6 +12,7 @@ class Viewer(BaseModel):
 
     name: str
     recorded_at: datetime
+    has_liked: bool = False
 
     @field_serializer("recorded_at")
     def serialize_recorded_at(self, recorded_at: datetime, _info):
@@ -27,4 +28,4 @@ class Viewer(BaseModel):
         raise TypeError("invalid type of timestamp")
 
     def __str__(self) -> str:
-        return f"{self.name} ({self.recorded_at.strftime(DATE_OUTPUT_FORMAT)})"
+        return f"{'❤️   ' if self.has_liked else ''}{self.name} ({self.recorded_at.strftime(DATE_OUTPUT_FORMAT)})"

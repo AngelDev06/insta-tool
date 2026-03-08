@@ -40,7 +40,24 @@ class StoryHistory(mixins.Cached, BaseModel):
         for story_id, story in fetched_stories:
             if story_id in self.stories:
                 current = self.stories[story_id]
-                current.viewers = story.viewers | current.viewers
+                for key, viewer in story.viewers.items():
+                    if key in current.viewers:
+                        current_viewer = current.viewers[key]
+                        if current_viewer.has_liked != viewer.has_liked:
+                            current.viewers[key] = viewer
+                    else:
+                        current.viewers[key] = viewer
+
+                current.viewers = dict(
+                    sorted(
+                        current.viewers.items(),
+                        key=lambda item: (
+                            item[1].has_liked,
+                            item[1].recorded_at,
+                        ),
+                        reverse=True,
+                    )
+                )
             else:
                 self.stories[story_id] = Story.model_construct(
                     timestamp=story.timestamp, viewers=story.viewers
@@ -55,7 +72,9 @@ class StoryHistory(mixins.Cached, BaseModel):
         if isinstance(sid_or_date, int):
             return sid_or_date, self.stories.get(sid_or_date)
         if not isinstance(sid_or_date, date):
-            raise TypeError("`sid_or_date` should be a valid date or a story id")
+            raise TypeError(
+                "`sid_or_date` should be a valid date or a story id"
+            )
 
         result: tuple[int, Optional[Story]] = (0, None)
 
@@ -165,7 +184,9 @@ class StoryHistory(mixins.Cached, BaseModel):
                 continue
 
             options = list(
-                takewhile(lambda item: item[1].timestamp.date() == record, iterator)
+                takewhile(
+                    lambda item: item[1].timestamp.date() == record, iterator
+                )
             )  # newest to oldest
             options[0:0] = [captured, (sid, story)]
 

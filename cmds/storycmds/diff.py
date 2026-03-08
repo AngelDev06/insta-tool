@@ -72,6 +72,7 @@ def run(args: Namespace):
         if not stories:
             logger.critical("no stories received from the api so nothing to compare")
             return
+        records.dump_update(stories)
         story2 = get_last_value(stories.stories)
     else:
         _, story2 = records.at(args.story2, True)

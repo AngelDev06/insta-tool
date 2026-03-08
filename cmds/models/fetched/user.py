@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Self, cast
 
 from ...utils.constants import LISTS, ListsType
 from ...utils.scrapping import Scrapper
@@ -10,6 +10,7 @@ from .. import mixins
 
 if TYPE_CHECKING:
     from instagrapi import Client
+    from instagrapi.types import UserShort
 
 
 @dataclass
@@ -41,8 +42,13 @@ class User(mixins.User):
                 chunk_size=chunk_size,
             )
             logger.info(f"fetching {list_name}, total count: {count}")
-            user_list: dict[int, str] = getattr(scrapper, f"fetch_{list_name}")()
-            container[list_name] = user_list
+            user_list: dict[int, UserShort] = getattr(
+                scrapper, f"fetch_{list_name}"
+            )()
+            container[list_name] = {
+                uid: cast(str, user.username)
+                for uid, user in user_list.items()
+            }
 
             logger.info(f"fetched {list_name}, total count: {len(user_list)}")
 

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from functools import wraps
 from random import uniform
 from time import sleep, time
-from typing import TYPE_CHECKING, Any, Optional, Protocol, cast
+from typing import TYPE_CHECKING, Any, Optional, Protocol, cast, Union
 
 from .bots import Config
 from .constants import SESSIONS_FOLDER
@@ -12,16 +12,18 @@ from .tool_logger import logger
 
 if TYPE_CHECKING:
     from instagrapi import Client
-    from instagrapi.types import UserShort
+    from instagrapi.types import UserShort, Viewer
 
 
 class ScrapCallback(Protocol):
-    def __call__(_self, self: Any) -> tuple[list[UserShort], str]: ...
+    def __call__(
+        _self, self: Any
+    ) -> tuple[Union[list[UserShort], list[Viewer]], str]: ...
 
 
 def scrap(callback: ScrapCallback):
     @wraps(callback)
-    def wrapper(self: Any) -> dict[int, str]:
+    def wrapper(self: Any) -> dict[int, Union[UserShort, Viewer]]:
         from instagrapi.exceptions import (
             ChallengeRequired,
             ClientJSONDecodeError,
@@ -29,7 +31,7 @@ def scrap(callback: ScrapCallback):
             LoginRequired,
         )
 
-        result: dict[int, str] = {}
+        result: dict[int, Union[UserShort, Viewer]] = {}
 
         if self.user_count is not None:
             logger.debug(
@@ -98,9 +100,7 @@ def scrap(callback: ScrapCallback):
                 len(user_list),
                 cursor,
             )
-            result.update(
-                (int(user.pk), cast(str, user.username)) for user in user_list
-            )
+            result.update((int(user.pk), user) for user in user_list)
             logger.info(f"current user count: {len(result)}")
 
             if not cursor:
