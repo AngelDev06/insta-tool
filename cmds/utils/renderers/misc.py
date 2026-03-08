@@ -1,12 +1,10 @@
 from dataclasses import dataclass
 from datetime import date
-from itertools import tee
-from typing import Iterable, Optional
+from typing import Optional
 
 from ...models import cached
 from ...models.viewer import Viewer
 from ..constants import DATE_OUTPUT_FORMAT
-from ..filters import date_filter
 from ..streams import ColoredOutput
 
 
@@ -16,55 +14,21 @@ class ViewerHistoryRenderer:
     username: str
     from_date: Optional[date]
     to_date: Optional[date]
-    all: bool
-    deep: bool
 
-    def render(self, stories: dict[int, cached.Story]):
-        lookup_success: bool = False
+    def render(self, items: list[tuple[int, cached.Story, Optional[Viewer]]]):
         self.out.set_attrs(color="green", attrs=("bold", "underline"))
         self.render_header()
 
-        if self.deep:
-            uid = self.lookup_uid(stories.items())
-            if uid is None:
-                self.render_failed_result()
-                return
-
-            def lookup(story: cached.Story) -> Optional[Viewer]:
-                return story.viewers.get(uid)
-
-        else:
-
-            def lookup(story: cached.Story) -> Optional[Viewer]:
-                for viewer in story.viewers.values():
-                    if viewer.name == self.username:
-                        return viewer
-                return None
-
-        for sid, story in reversed(
-            list(
-                date_filter(
-                    self.from_date,
-                    self.to_date,
-                    stories.items(),
-                    lambda item: item[1].timestamp.date(),
-                )
+        if not items:
+            self.out.set_attrs(color="red")
+            self.out.cwrite(
+                "Viewer lookup failed, no records of the specified user were found"
             )
-        ):
-            viewer = lookup(story)
-            if viewer is not None or self.all:
-                self.render_entry(sid, story, viewer)
-                lookup_success = True
+            self.out.write("\n")
+            return
 
-        if not lookup_success:
-            self.render_failed_result()
-
-    def render_failed_result(self):
-        self.out.set_attrs(color="red")
-        self.out.cwrite(
-            "Viewer lookup failed, no records of the specified user were found"
-        )
-        self.out.write("\n")
+        for sid, story, viewer in reversed(items):
+            self.render_entry(sid, story, viewer)
 
     def render_entry(
         self, sid: int, story: cached.Story, viewer: Optional[Viewer]
@@ -94,10 +58,3 @@ class ViewerHistoryRenderer:
         if date_txt:
             self.out.write(f"{', '.join(date_txt)}\n")
         self.out.write("\n")
-
-    def lookup_uid(self, stories: Iterable[tuple[int, cached.Story]]) -> Optional[int]:
-        for _, story in stories:
-            for uid, viewer in story.viewers.items():
-                if viewer.name == self.username:
-                    return uid
-        return None

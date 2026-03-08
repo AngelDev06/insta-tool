@@ -20,3 +20,11 @@ def id_or_date(argument: str) -> Union[date, int]:
     except ValueError:
         raise ArgumentTypeError(f"'{argument}' is neither a proper date nor an id")
 
+
+def username_with_id(argument: str) -> tuple[int, str]:
+    items = argument.split("-")
+
+    if len(items) == 1:
+        return (0, argument)
+
+    return (int(items[1]), items[0])

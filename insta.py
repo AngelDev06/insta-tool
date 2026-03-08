@@ -11,7 +11,7 @@ def main():
         prog="insta",
         description="A tool for interacting with the instagram api",
     )
-    
+
     parser.add_argument(
         "--name",
         help="The name of the account to login",
@@ -62,7 +62,7 @@ def main():
     log.setup_parser(
         subparsers.add_parser(
             "log",
-            help="Logs a user's scan history (from most recent to oldest)",
+            help="Utilities to interact with the cached state history (such as viewing or deleting)",
         )
     )
     checkout.setup_parser(

@@ -1,17 +1,17 @@
 from argparse import ArgumentParser, FileType, Namespace
-from sys import stdout
-from itertools import dropwhile
-from typing import Optional, Union, overload, NoReturn
 from datetime import date
+from itertools import dropwhile
+from sys import stdout
+from typing import NoReturn, Optional, Union, overload
 
+from ..models import cached, fetched
 from ..utils.actions import UniqueChoices
+from ..utils.bots import Bot
 from ..utils.constants import CHANGES
 from ..utils.parsers import id_or_date
-from ..utils.tool_logger import logger
 from ..utils.renderers import ViewersDiffRenderer
-from ..utils.bots import Bot
 from ..utils.streams import ColoredOutput
-from ..models import cached, fetched
+from ..utils.tool_logger import logger
 
 
 @overload
@@ -42,16 +42,12 @@ def verify_story_access(
         return
     if isinstance(sid_or_date, int):
         parser.error(f"invalid story id given for the {story_text}")
-    parser.error(
-        f"no story exists for the {story_text} at date specified in record"
-    )
+    parser.error(f"no story exists for the {story_text} at date specified in record")
 
 
 def get_last_value[T1, T2](data: dict[T1, T2]) -> T2:
     return next(
-        dropwhile(
-            lambda item: item[0] != len(data), enumerate(data.values(), 1)
-        )
+        dropwhile(lambda item: item[0] != len(data), enumerate(data.values(), 1))
     )[1]
 
 
@@ -61,33 +57,25 @@ def run(args: Namespace):
 
     records = cached.StoryHistory.get(args.name)
     if not records.stories:
-        logger.critical(
-            "There are no stories in record for the user specified"
-        )
+        logger.critical("There are no stories in record for the user specified")
         return
 
     if args.story1 is None:
         story1 = get_last_value(records.stories)
     else:
         _, story1 = records.at(args.story1)
-        verify_story_access(
-            args.diffparser, story1, args.story1, "first story"
-        )
+        verify_story_access(args.diffparser, story1, args.story1, "first story")
 
     if args.story2 is None:
         client = bot.login()
         stories = fetched.Stories.fetch(client, args.name, args.chunk_size)
         if not stories:
-            logger.critical(
-                "no stories received from the api so nothing to compare"
-            )
+            logger.critical("no stories received from the api so nothing to compare")
             return
         story2 = get_last_value(stories.stories)
     else:
-        _, story2 = records.at(args.story2)
-        verify_story_access(
-            args.diffparser, story2, args.story2, "second story"
-        )
+        _, story2 = records.at(args.story2, True)
+        verify_story_access(args.diffparser, story2, args.story2, "second story")
 
     renderer = ViewersDiffRenderer(
         out=ColoredOutput(args.out, "green"),
@@ -123,9 +111,7 @@ def setup_parser(parser: ArgumentParser):
         "the most recent one is used). The story id can "
         "also be specified directly.",
     )
-    parser.add_argument(
-        "--username", help="Only show updates for a specific user"
-    )
+    parser.add_argument("--username", help="Only show updates for a specific user")
     parser.add_argument(
         "-c",
         "--changes",

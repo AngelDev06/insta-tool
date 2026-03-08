@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from itertools import dropwhile, takewhile
-from typing import Any, Callable, ClassVar, Iterable, Optional, Union
+from typing import Any, Callable, ClassVar, Iterable, Iterator, Optional, Union
 
 from pydantic import BaseModel, Field, field_serializer, field_validator
 
@@ -49,16 +49,26 @@ class StoryHistory(mixins.Cached, BaseModel):
         if fetched_stories:
             self.dump(fetched_stories.username, fetched_stories.id)
 
-    def at(self, sid_or_date: Union[int, date]) -> tuple[int, Optional[Story]]:
+    def at(
+        self, sid_or_date: Union[int, date], select_last: bool = False
+    ) -> tuple[int, Optional[Story]]:
         if isinstance(sid_or_date, int):
             return sid_or_date, self.stories.get(sid_or_date)
         if not isinstance(sid_or_date, date):
             raise TypeError("`sid_or_date` should be a valid date or a story id")
 
+        result: tuple[int, Optional[Story]] = (0, None)
+
         for sid, story in self.stories.items():
             if story.timestamp.date() == sid_or_date:
-                return sid, story
-        return 0, None
+                result = (sid, story)
+                if not select_last:
+                    break
+                continue
+            if select_last and result[0]:
+                break
+
+        return result
 
     @staticmethod
     def _range_not_started(
@@ -93,6 +103,47 @@ class StoryHistory(mixins.Cached, BaseModel):
             self._range_should_continue(end),
             dropwhile(self._range_not_started(start), self.stories.items()),
         )
+
+    def lookup(
+        self,
+        username: str,
+        from_point: Optional[Union[int, date]] = None,
+        to_point: Optional[Union[int, date]] = None,
+        deep: bool = False,
+        all: bool = False,
+    ) -> Iterable[tuple[int, Story, Optional[Viewer]]]:
+        if deep:
+            uid = self.lookup_uid(username)
+            if uid is None:
+                return []
+
+            def find(story: Story) -> Optional[Viewer]:
+                return story.viewers.get(uid)
+
+        else:
+
+            def find(story: Story) -> Optional[Viewer]:
+                for viewer in story.viewers.values():
+                    if viewer.name == username:
+                        return viewer
+                return None
+
+        def search() -> Iterator[tuple[int, Story, Optional[Viewer]]]:
+            for sid, story in self.range(from_point, to_point):
+                viewer = find(story)
+                if viewer is not None:
+                    yield sid, story, viewer
+                elif all:
+                    yield sid, story, None
+
+        return search()
+
+    def lookup_uid(self, username: str) -> Optional[int]:
+        for story in self.stories.values():
+            for uid, viewer in story.viewers.items():
+                if viewer.name == username:
+                    return uid
+        return None
 
     def delete(self, owner: str, record: Union[date, int]) -> bool:
         if not self.stories:

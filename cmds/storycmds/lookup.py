@@ -18,8 +18,6 @@ def run(args: Namespace):
         username=args.target,
         from_date=args.from_date,
         to_date=args.to_date,
-        all=args.all,
-        deep=args.deep,
     )
 
     if args.sync:
@@ -27,7 +25,13 @@ def run(args: Namespace):
         fetched_content = fetched.Stories.fetch(client, args.name, args.chunk_size)
         records.dump_update(fetched_content)
 
-    renderer.render(records.stories)
+    renderer.render(
+        list(
+            records.lookup(
+                args.target, args.from_date, args.to_date, args.deep, args.all
+            )
+        )
+    )
 
 
 def setup_parser(parser: ArgumentParser):
